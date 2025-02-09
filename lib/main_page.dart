@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'profile_page.dart'; // ✅ Подключаем страницу профиля
 
 /// Главная страница приложения
 class MainPage extends StatefulWidget {
@@ -120,7 +121,19 @@ class _MainPageState extends State<MainPage> {
   Widget _buildBottomNavBar() {
     return NavigationBar(
       selectedIndex: _currentIndex,
-      onDestinationSelected: (index) => setState(() => _currentIndex = index),
+      onDestinationSelected: (index) {
+        setState(() {
+          _currentIndex = index;
+        });
+
+        // ✅ Переход на страницу профиля при нажатии на "Profil"
+        if (index == 3) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => ProfilePage()),
+          );
+        }
+      },
       destinations: const [
         NavigationDestination(icon: Icon(Icons.home), label: 'Startseite'),
         NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Shop'),
