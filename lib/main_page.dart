@@ -37,7 +37,7 @@ class _MainPageState extends State<MainPage> {
   /// Создание верхнего AppBar с логотипом
   PreferredSizeWidget _buildAppBar() {
     return PreferredSize(
-      preferredSize: const Size.fromHeight(190), // Высота AppBar
+      preferredSize: const Size.fromHeight(180), // Высота AppBar
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -46,7 +46,7 @@ class _MainPageState extends State<MainPage> {
             end: Alignment.bottomRight,
           ),
           borderRadius: const BorderRadius.vertical(
-            bottom: Radius.circular(30), // Закругление нижней части
+            bottom: Radius.circular(20), // Закругление нижней части
           ),
         ),
         child: SafeArea(
@@ -79,18 +79,11 @@ class _MainPageState extends State<MainPage> {
                     children: [
                       Image.asset(
                         'assets/logo.png',
-                        height: 80,
+                        height: 90,
                         fit: BoxFit.contain,
                       ),
                       const SizedBox(height: 10),
-                      const Text(
-                        'Willkommen zurück!',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+
                     ],
                   ),
                 ),
