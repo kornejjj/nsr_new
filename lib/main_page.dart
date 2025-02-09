@@ -41,7 +41,7 @@ class _MainPageState extends State<MainPage> {
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.deepPurple, Colors.purple.shade300], // Градиентный фон
+            colors: [Colors.yellow, Colors.yellowAccent.shade100], // Градиентный фон
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -60,13 +60,13 @@ class _MainPageState extends State<MainPage> {
                     const Text(
                       "Let's GO Vika!",
                       style: TextStyle(
-                        color: Colors.white,
+                        color: Colors.black,
                         fontWeight: FontWeight.bold,
                         fontSize: 24,
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.notifications, color: Colors.white),
+                      icon: const Icon(Icons.notifications, color: Colors.black),
                       onPressed: () {}, // Действие при нажатии на уведомления
                     ),
                   ],
@@ -86,7 +86,7 @@ class _MainPageState extends State<MainPage> {
                       const Text(
                         'Willkommen zurück!',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Colors.black,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
