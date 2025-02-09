@@ -7,9 +7,8 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  int _currentIndex = 0; // Индекс текущей страницы в нижнем навигационном баре
+  int _currentIndex = 0;
 
-  // Список кнопок для сетки действий
   final List<_ButtonData> _actionButtons = [
     _ButtonData(Icons.flag, 'Missionen', Colors.orange),
     _ButtonData(Icons.directions_run, 'Schritte', Colors.green),
@@ -20,34 +19,32 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50], // Светлый фон для контраста
-      appBar: _buildAppBar(), // Объединенный AppBar с логотипом
+      backgroundColor: Colors.grey[50],
+      appBar: _buildAppBar(),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            const _StatsSection(), // Блок с прогрессом команды
-            _buildActionButtons(), // Сетка с кнопками действий
+            const _StatsSection(),
+            _buildActionButtons(),
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNavBar(), // Нижняя панель навигации
+      bottomNavigationBar: _buildBottomNavBar(),
     );
   }
 
-  /// Создание верхнего AppBar с логотипом
+  /// Создание верхнего AppBar
   PreferredSizeWidget _buildAppBar() {
     return PreferredSize(
-      preferredSize: const Size.fromHeight(180), // Высота AppBar
+      preferredSize: const Size.fromHeight(180),
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.yellow, Colors.yellowAccent.shade100], // Градиентный фон
+            colors: [Colors.yellow, Colors.yellowAccent.shade100],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: const BorderRadius.vertical(
-            bottom: Radius.circular(20), // Закругление нижней части
-          ),
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
         ),
         child: SafeArea(
           child: Column(
@@ -67,24 +64,17 @@ class _MainPageState extends State<MainPage> {
                     ),
                     IconButton(
                       icon: const Icon(Icons.notifications, color: Colors.black),
-                      onPressed: () {}, // Действие при нажатии на уведомления
+                      onPressed: () {},
                     ),
                   ],
                 ),
               ),
               Expanded(
                 child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Image.asset(
-                        'assets/logo.png',
-                        height: 90,
-                        fit: BoxFit.contain,
-                      ),
-                      const SizedBox(height: 10),
-
-                    ],
+                  child: Image.asset(
+                    'assets/logo.png',
+                    height: 90,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
@@ -99,22 +89,27 @@ class _MainPageState extends State<MainPage> {
   Widget _buildActionButtons() {
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(), // Отключаем скролл внутри GridView
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, // Две колонки
-          crossAxisSpacing: 15,
-          mainAxisSpacing: 15,
-          childAspectRatio: 1, // Квадратные кнопки
-        ),
-        itemCount: _actionButtons.length,
-        itemBuilder: (context, index) {
-          final button = _actionButtons[index];
-          return _CustomSquareButton(
-            icon: button.icon,
-            text: button.text,
-            color: button.color,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          int crossAxisCount = constraints.maxWidth > 600 ? 4 : 2;
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 15,
+              mainAxisSpacing: 15,
+              childAspectRatio: 1,
+            ),
+            itemCount: _actionButtons.length,
+            itemBuilder: (context, index) {
+              final button = _actionButtons[index];
+              return _CustomSquareButton(
+                icon: button.icon,
+                text: button.text,
+                color: button.color,
+              );
+            },
           );
         },
       ),
@@ -122,20 +117,15 @@ class _MainPageState extends State<MainPage> {
   }
 
   /// Нижняя панель навигации
-  BottomNavigationBar _buildBottomNavBar() {
-    return BottomNavigationBar(
-      currentIndex: _currentIndex,
-      onTap: (index) => setState(() => _currentIndex = index),
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: Colors.deepPurple, // Цвет активного элемента
-      unselectedItemColor: Colors.grey[500], // Цвет неактивных элементов
-      backgroundColor: Colors.white,
-      elevation: 10,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Startseite'),
-        BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Shop'),
-        BottomNavigationBarItem(icon: Icon(Icons.group), label: 'Team'),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
+  Widget _buildBottomNavBar() {
+    return NavigationBar(
+      selectedIndex: _currentIndex,
+      onDestinationSelected: (index) => setState(() => _currentIndex = index),
+      destinations: const [
+        NavigationDestination(icon: Icon(Icons.home), label: 'Startseite'),
+        NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Shop'),
+        NavigationDestination(icon: Icon(Icons.group), label: 'Team'),
+        NavigationDestination(icon: Icon(Icons.person), label: 'Profil'),
       ],
     );
   }
@@ -180,8 +170,7 @@ class _StatsSection extends StatelessWidget {
                     LinearProgressIndicator(
                       value: 0.7,
                       backgroundColor: Colors.grey[200],
-                      valueColor:
-                      AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
                       minHeight: 8,
                     ),
                     const SizedBox(height: 10),
@@ -215,7 +204,7 @@ class _CustomSquareButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(15),
       elevation: 5,
       child: InkWell(
-        onTap: () {}, // Действие при нажатии
+        onTap: () {},
         borderRadius: BorderRadius.circular(15),
         child: Container(
           decoration: BoxDecoration(
