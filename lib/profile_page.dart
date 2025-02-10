@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'main_page.dart'; // Подключаем главную страницу
+import 'main_page.dart';
+import 'edit_profile_page.dart'; // ✅ Подключаем страницу редактирования профиля
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -14,18 +15,10 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text("Mein Profil"),
+        title: const Center(child: Text("Mein Profil")), // ✅ Центрируем заголовок
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
         automaticallyImplyLeading: false, // ❌ Убираем кнопку "Назад"
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              // ✅ Здесь можно добавить переход в настройки
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -48,8 +41,26 @@ class _ProfilePageState extends State<ProfilePage> {
                     "🚀 Team Ukraine 🇺🇦",
                     style: TextStyle(fontSize: 18, color: Colors.grey[600]),
                   ),
+                  const SizedBox(height: 10),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => EditProfilePage()),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.yellow[600],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      "Profil bearbeiten",
+                      style: TextStyle(fontSize: 16, color: Colors.black),
+                    ),
+                  ),
                   const SizedBox(height: 20),
-                  _buildStatCard("6 Quizfragen beantwortet", "165 pts"),
                   _buildStatCard("19 Missionen erfüllt", "2680 pts"),
                   _buildStatCard("254504 Schritte", "1609 pts"),
                 ],

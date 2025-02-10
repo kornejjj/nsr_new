@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 
 class LoginPage extends StatefulWidget {
+  const LoginPage({super.key}); // ✅ Добавлен key
+
   @override
   _LoginPageState createState() => _LoginPageState();
 }
@@ -11,22 +13,30 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
-  String _errorMessage = '';
+  bool _isLoading = false; // ✅ Добавлен индикатор загрузки
+  String? _errorMessage;
 
-  void _login() {
+  /// ✅ Функция входа
+  void _login() async {
     if (_formKey.currentState!.validate()) {
-      bool loginSuccess = true; // Симуляция успешного входа
+      setState(() => _isLoading = true); // Показать индикатор загрузки
 
-      if (loginSuccess) {
-        Navigator.pushReplacementNamed(context, '/main');
-      } else {
-        setState(() {
+      await Future.delayed(const Duration(seconds: 2)); // Симуляция запроса
+
+      setState(() {
+        _isLoading = false;
+        bool loginSuccess = _emailController.text == "test@example.com" && _passwordController.text == "123456";
+
+        if (loginSuccess) {
+          Navigator.pushReplacementNamed(context, '/main');
+        } else {
           _errorMessage = "Falsche E-Mail oder Passwort";
-        });
-      }
+        }
+      });
     }
   }
 
+  /// ✅ Текстовое поле
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -39,20 +49,25 @@ class _LoginPageState extends State<LoginPage> {
       decoration: InputDecoration(
         labelText: label,
         filled: true,
-        fillColor: Colors.grey[200],
-        border: OutlineInputBorder(borderRadius: BorderRadius.zero),
+        fillColor: Theme.of(context).brightness == Brightness.dark ? Colors.grey[800] : Colors.grey[200],
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         suffixIcon: isPassword
-            ? IconButton(
-          icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off),
-          onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
-        )
+            ? AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                child: IconButton(
+                  key: ValueKey<bool>(_isPasswordVisible),
+                  icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off),
+                  onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                ),
+              )
             : null,
       ),
       validator: (value) {
         if (value == null || value.isEmpty) {
           return "Dieses Feld darf nicht leer sein";
         }
-        if (!isPassword && !value.contains("@")) {
+        if (!isPassword && !RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").hasMatch(value)) {
           return "Ungültige E-Mail";
         }
         if (isPassword && value.length < 6) {
@@ -63,6 +78,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  /// ✅ Кнопка (с поддержкой загрузки)
   Widget _buildButton({
     required String text,
     required VoidCallback onPressed,
@@ -72,23 +88,29 @@ class _LoginPageState extends State<LoginPage> {
       width: double.infinity,
       child: isPrimary
           ? ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.amber, // 💛 Желтая кнопка!
-          foregroundColor: Colors.black,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        ),
-        child: Text(text),
-      )
+              onPressed: _isLoading ? null : onPressed, // 🔄 Блокируем кнопку во время загрузки
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                    )
+                  : Text(text),
+            )
           : OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.black,
-          side: BorderSide(color: Colors.black),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        ),
-        child: Text(text),
-      ),
+              onPressed: onPressed,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.black,
+                side: const BorderSide(color: Colors.black),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: Text(text),
+            ),
     );
   }
 
@@ -108,17 +130,17 @@ class _LoginPageState extends State<LoginPage> {
                   Text(
                     "Anmeldung",
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.amber, // 💛 Желтый заголовок
-                    ),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amber,
+                        ),
                   ),
                   const SizedBox(height: 20),
                   _buildTextField(controller: _emailController, label: "E-Mail"),
                   const SizedBox(height: 10),
                   _buildTextField(controller: _passwordController, label: "Passwort", isPassword: true),
                   const SizedBox(height: 10),
-                  if (_errorMessage.isNotEmpty)
-                    Text(_errorMessage, style: TextStyle(color: Colors.red)),
+                  if (_errorMessage != null)
+                    Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
                   const SizedBox(height: 20),
                   _buildButton(text: "Anmelden", onPressed: _login, isPrimary: true),
                   const SizedBox(height: 10),
@@ -134,4 +156,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
+
+
+
 */
