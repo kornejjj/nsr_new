@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "996486943495",
+    "project_id": "my-nonstop-265de",
+    "storage_bucket": "my-nonstop-265de.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:996486943495:android:b2744ad4962e4d9352eba2",
+        "android_client_info": {
+          "package_name": "com.example.nonstop_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAj-j-rMIxbB3Dl33x4pzyK51_VM6xrYdU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
