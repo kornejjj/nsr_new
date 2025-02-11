@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart'; // ✅ Подключаем Firebase
 import 'login_page.dart';  // Можно оставить, но не использовать
 import 'register_page.dart';
 import 'main_page.dart';
 import 'profile_page.dart';
 import 'edit_profile_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // ✅ Обязательно перед инициализацией Firebase
+  await Firebase.initializeApp(); // ✅ Инициализация Firebase
+
   runApp(MyApp());
 }
 
