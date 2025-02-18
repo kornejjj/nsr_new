@@ -268,7 +268,7 @@ class ButtonData {
   ButtonData(this.icon, this.text, this.color);
 }
 
-/// 📌 Текст для статистики
+/// 📌 Текст для статистики!
 class _StatsText extends StatelessWidget {
   final String text;
   final double fontSize;
