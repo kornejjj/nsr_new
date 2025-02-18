@@ -10,74 +10,46 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int _currentIndex = 0;
 
-  final List<_ButtonData> _actionButtons = [
-    _ButtonData(Icons.flag, 'Missionen', Colors.orange),
-    _ButtonData(Icons.directions_run, 'Schritte', Colors.green),
-    _ButtonData(Icons.leaderboard, 'Aktivität', Colors.blue),
-    _ButtonData(Icons.wb_sunny, 'Wetter', Colors.purple),
+  final List<ButtonData> _actionButtons = [
+    ButtonData(Icons.flag, 'Missionen', Colors.orange),
+    ButtonData(Icons.directions_run, 'Schritte', Colors.green),
+    ButtonData(Icons.leaderboard, 'Aktivität', Colors.blue),
+    ButtonData(Icons.wb_sunny, 'Wetter', Colors.purple),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: _buildAppBar(),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            const _StatsSection(),
-            _buildActionButtons(),
-          ],
-        ),
-      ),
       bottomNavigationBar: _buildBottomNavBar(),
-    );
-  }
-
-  /// Создание верхнего AppBar
-  PreferredSizeWidget _buildAppBar() {
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(180),
-      child: Container(
-        decoration: BoxDecoration(
+      body: Container(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.yellow, Colors.yellowAccent.shade100],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFFFD54F),
+              Color(0xFFFFE082),
+              Color(0xFFFFF9C4),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
-          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
         ),
         child: SafeArea(
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      "Let's GO Vika!",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.notifications, color: Colors.black),
-                      onPressed: () {},
-                    ),
-                  ],
+              _buildHeader(),
+              const SizedBox(height: 15),
+              Text(
+                "Let's Go Vika!",
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
                 ),
               ),
-              Expanded(
-                child: Center(
-                  child: Image.asset(
-                    'assets/logo.png',
-                    height: 90,
-                    fit: BoxFit.contain,
-                  ),
-                ),
+              const SizedBox(height: 15),
+              const _StatsSection(),
+              Expanded( // 🔥 Растягиваем фон до нижней панели
+                child: _buildActionButtons(),
               ),
             ],
           ),
@@ -86,38 +58,76 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  /// Создание сетки кнопок действий
+  /// 📌 Заголовок (Логотип по центру, ракеты и колокольчик выше)
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(
+                3,
+                    (index) => const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4),
+                  child: Icon(Icons.rocket_launch, color: Colors.black45, size: 26),
+                ),
+              ),
+            ),
+          ),
+          Center(
+            child: Image.asset(
+              'assets/logo.png',
+              height: 80, // Немного уменьшил логотип
+              fit: BoxFit.contain,
+            ),
+          ),
+          Positioned(
+            right: 0,
+            top: 0,
+            child: IconButton(
+              icon: const Icon(Icons.notifications, color: Colors.black54, size: 26),
+              onPressed: () {},
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 📌 Кнопки действий (растянуты до нижней панели)
   Widget _buildActionButtons() {
     return Padding(
-      padding: const EdgeInsets.all(20),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          int crossAxisCount = constraints.maxWidth > 600 ? 4 : 2;
-          return GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: 15,
-              mainAxisSpacing: 15,
-              childAspectRatio: 1,
-            ),
-            itemCount: _actionButtons.length,
-            itemBuilder: (context, index) {
-              final button = _actionButtons[index];
-              return _CustomSquareButton(
-                icon: button.icon,
-                text: button.text,
-                color: button.color,
-              );
-            },
+      padding: const EdgeInsets.all(25),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 20,
+          mainAxisSpacing: 20,
+          childAspectRatio: 1, // 🔹 Делаем кнопки квадратными
+        ),
+        itemCount: _actionButtons.length,
+        itemBuilder: (context, index) {
+          final button = _actionButtons[index];
+          return _CustomSquareButton(
+            icon: button.icon,
+            text: button.text,
+            color: button.color,
+            iconSize: 36,
+            fontSize: 20,
           );
         },
       ),
     );
   }
 
-  /// Нижняя панель навигации
+  /// 📌 Нижняя панель навигации
   Widget _buildBottomNavBar() {
     return NavigationBar(
       selectedIndex: _currentIndex,
@@ -126,7 +136,6 @@ class _MainPageState extends State<MainPage> {
           _currentIndex = index;
         });
 
-        // ✅ Переход на страницу профиля при нажатии на "Profil"
         if (index == 3) {
           Navigator.push(
             context,
@@ -144,7 +153,7 @@ class _MainPageState extends State<MainPage> {
   }
 }
 
-/// Виджет блока статистики команды
+/// 📌 Блок статистики (Team)
 class _StatsSection extends StatelessWidget {
   const _StatsSection();
 
@@ -183,7 +192,7 @@ class _StatsSection extends StatelessWidget {
                     LinearProgressIndicator(
                       value: 0.7,
                       backgroundColor: Colors.grey[200],
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurple),
                       minHeight: 8,
                     ),
                     const SizedBox(height: 10),
@@ -199,16 +208,20 @@ class _StatsSection extends StatelessWidget {
   }
 }
 
-/// Виджет квадратных кнопок
+/// 📌 Кнопки квадратные
 class _CustomSquareButton extends StatelessWidget {
   final IconData icon;
   final String text;
   final Color color;
+  final double iconSize;
+  final double fontSize;
 
   const _CustomSquareButton({
     required this.icon,
     required this.text,
     required this.color,
+    this.iconSize = 42,
+    this.fontSize = 16,
   });
 
   @override
@@ -231,11 +244,11 @@ class _CustomSquareButton extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: Colors.white, size: 42),
-              const SizedBox(height: 8),
+              Icon(icon, color: Colors.white, size: iconSize),
+              const SizedBox(height: 7),
               Text(
                 text,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold, color: Colors.white),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -246,16 +259,16 @@ class _CustomSquareButton extends StatelessWidget {
   }
 }
 
-/// Модель данных для кнопок
-class _ButtonData {
+/// 📌 Модель данных для кнопок
+class ButtonData {
   final IconData icon;
   final String text;
   final Color color;
 
-  _ButtonData(this.icon, this.text, this.color);
+  ButtonData(this.icon, this.text, this.color);
 }
 
-/// Виджет для стилизованного текста статистики
+/// 📌 Текст для статистики
 class _StatsText extends StatelessWidget {
   final String text;
   final double fontSize;
@@ -266,11 +279,7 @@ class _StatsText extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: TextStyle(
-        fontSize: fontSize,
-        fontWeight: FontWeight.w600,
-        color: Colors.grey[800],
-      ),
+      style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w600, color: Colors.grey[800]),
     );
   }
 }
