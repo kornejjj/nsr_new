@@ -11,13 +11,15 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  firebase_core: ^3.11.0
+
+  # 🔹 Обновляем до последней совместимой версии
+  firebase_core: ^3.12.0
   firebase_analytics: ^11.4.2
-  firebase_auth: ^5.4.2
+  firebase_auth: ^5.5.0
+  cloud_firestore: ^5.6.3
 
   flutter_localizations:
     sdk: flutter
-
 
 dev_dependencies:
   flutter_test:
@@ -29,3 +31,4 @@ flutter:
   assets:
     - assets/logo.png
     - assets/flag.png
+

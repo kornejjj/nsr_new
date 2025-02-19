@@ -110,7 +110,7 @@ class _MainPageState extends State<MainPage> {
           crossAxisCount: 2,
           crossAxisSpacing: 20,
           mainAxisSpacing: 20,
-          childAspectRatio: 1, // 🔹 Делаем кнопки квадратными
+          childAspectRatio: 1.2, // 🔹 Делаем кнопки квадратными
         ),
         itemCount: _actionButtons.length,
         itemBuilder: (context, index) {
@@ -190,10 +190,10 @@ class _StatsSection extends StatelessWidget {
                     const _StatsText('Team Ukraine', 22),
                     const SizedBox(height: 10),
                     LinearProgressIndicator(
-                      value: 0.7,
+                      value: 0.9,
                       backgroundColor: Colors.grey[200],
                       valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurple),
-                      minHeight: 8,
+                      minHeight: 14,
                     ),
                     const SizedBox(height: 10),
                     const _StatsText('125.365 Punkte', 18),

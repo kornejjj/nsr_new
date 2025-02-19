@@ -21,7 +21,7 @@ class _RegisterPageState extends State<RegisterPage> {
         return;
       }
       // Логика регистрации без Firebase
-      Navigator.pushReplacementNamed(context, '/main');
+      Navigator.pushReplacementNamed(context, '/team-selection');
     }
   }
 
