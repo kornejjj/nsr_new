@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import 'profile_page.dart'; // ✅ Подключаем страницу профиля
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'profile_page.dart';
+import 'team_page.dart';
+import 'team_selection_page.dart';
 
 /// Главная страница приложения
 class MainPage extends StatefulWidget {
@@ -38,17 +42,17 @@ class _MainPageState extends State<MainPage> {
             children: [
               _buildHeader(),
               const SizedBox(height: 15),
-              Text(
+              const Text(
                 "Let's Go Vika!",
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.black,
                   fontWeight: FontWeight.bold,
                   fontSize: 24,
                 ),
               ),
               const SizedBox(height: 15),
-              const _StatsSection(),
-              Expanded( // 🔥 Растягиваем фон до нижней панели
+              const StatsSection(), // ✅ Добавлен новый класс
+              Expanded(
                 child: _buildActionButtons(),
               ),
             ],
@@ -58,7 +62,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  /// 📌 Заголовок (Логотип по центру, ракеты и колокольчик выше)
+  /// 📌 Заголовок (Логотип по центру, ракеты и колокольчик)
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
@@ -82,7 +86,7 @@ class _MainPageState extends State<MainPage> {
           Center(
             child: Image.asset(
               'assets/logo.png',
-              height: 80, // Немного уменьшил логотип
+              height: 80,
               fit: BoxFit.contain,
             ),
           ),
@@ -99,7 +103,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  /// 📌 Кнопки действий (растянуты до нижней панели)
+  /// 📌 Кнопки действий
   Widget _buildActionButtons() {
     return Padding(
       padding: const EdgeInsets.all(25),
@@ -110,12 +114,12 @@ class _MainPageState extends State<MainPage> {
           crossAxisCount: 2,
           crossAxisSpacing: 20,
           mainAxisSpacing: 20,
-          childAspectRatio: 1.2, // 🔹 Делаем кнопки квадратными
+          childAspectRatio: 1.2,
         ),
         itemCount: _actionButtons.length,
         itemBuilder: (context, index) {
           final button = _actionButtons[index];
-          return _CustomSquareButton(
+          return CustomSquareButton(
             icon: button.icon,
             text: button.text,
             color: button.color,
@@ -136,7 +140,9 @@ class _MainPageState extends State<MainPage> {
           _currentIndex = index;
         });
 
-        if (index == 3) {
+        if (index == 2) {
+          _navigateToTeamPage();
+        } else if (index == 3) {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => ProfilePage()),
@@ -151,11 +157,33 @@ class _MainPageState extends State<MainPage> {
       ],
     );
   }
+
+  /// ✅ Проверяем, есть ли у пользователя команда
+  Future<void> _navigateToTeamPage() async {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+
+    QuerySnapshot teams = await FirebaseFirestore.instance
+        .collection('teams')
+        .where('members', arrayContains: userId)
+        .get();
+
+    if (teams.docs.isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => TeamPage()),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => TeamSelectionPage()),
+      );
+    }
+  }
 }
 
 /// 📌 Блок статистики (Team)
-class _StatsSection extends StatelessWidget {
-  const _StatsSection();
+class StatsSection extends StatelessWidget {
+  const StatsSection();
 
   @override
   Widget build(BuildContext context) {
@@ -177,9 +205,9 @@ class _StatsSection extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           child: Row(
             children: [
-              CircleAvatar(
+              const CircleAvatar(
                 radius: 40,
-                backgroundImage: const AssetImage('assets/flag.png'),
+                backgroundImage: AssetImage('assets/flag.png'),
                 backgroundColor: Colors.transparent,
               ),
               const SizedBox(width: 20),
@@ -187,7 +215,10 @@ class _StatsSection extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _StatsText('Team Ukraine', 22),
+                    const Text(
+                      'Team Ukraine',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
                     const SizedBox(height: 10),
                     LinearProgressIndicator(
                       value: 0.9,
@@ -196,7 +227,10 @@ class _StatsSection extends StatelessWidget {
                       minHeight: 14,
                     ),
                     const SizedBox(height: 10),
-                    const _StatsText('125.365 Punkte', 18),
+                    const Text(
+                      '125.365 Punkte',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                    ),
                   ],
                 ),
               ),
@@ -209,14 +243,14 @@ class _StatsSection extends StatelessWidget {
 }
 
 /// 📌 Кнопки квадратные
-class _CustomSquareButton extends StatelessWidget {
+class CustomSquareButton extends StatelessWidget {
   final IconData icon;
   final String text;
   final Color color;
   final double iconSize;
   final double fontSize;
 
-  const _CustomSquareButton({
+  const CustomSquareButton({
     required this.icon,
     required this.text,
     required this.color,
@@ -235,7 +269,7 @@ class _CustomSquareButton extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [color.withOpacity(0.8), color],
+              colors: [color.withAlpha(180), color],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -259,27 +293,11 @@ class _CustomSquareButton extends StatelessWidget {
   }
 }
 
-/// 📌 Модель данных для кнопок
+/// ✅ Добавляем класс `ButtonData`
 class ButtonData {
   final IconData icon;
   final String text;
   final Color color;
 
   ButtonData(this.icon, this.text, this.color);
-}
-
-/// 📌 Текст для статистики!
-class _StatsText extends StatelessWidget {
-  final String text;
-  final double fontSize;
-
-  const _StatsText(this.text, this.fontSize);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w600, color: Colors.grey[800]),
-    );
-  }
 }
