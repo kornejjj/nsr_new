@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'main_page.dart';
-import 'edit_profile_page.dart'; // ✅ Подключаем страницу редактирования профиля
+import 'edit_profile_page.dart';
+import 'login_page.dart'; // ✅ Подключаем страницу входа
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -10,12 +12,21 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   int _currentIndex = 3; // ✅ Устанавливаем "Profil" активным
 
+  /// ✅ Функция выхода из аккаунта
+  void _logout() async {
+    await FirebaseAuth.instance.signOut();
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => LoginPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Center(child: Text("Mein Profil")), // ✅ Центрируем заголовок
+        title: const Center(child: Text("Мой профиль")), // ✅ Центрируем заголовок
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
         automaticallyImplyLeading: false, // ❌ Убираем кнопку "Назад"
@@ -42,38 +53,54 @@ class _ProfilePageState extends State<ProfilePage> {
                     style: TextStyle(fontSize: 18, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 10),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => EditProfilePage()),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.yellow[600],
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+
+                  /// ✅ **Кнопки "Редактировать профиль" + "Выход"**
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => EditProfilePage()),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.yellow[600],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          "Редактировать профиль",
+                          style: TextStyle(fontSize: 16, color: Colors.black),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      "Profil bearbeiten",
-                      style: TextStyle(fontSize: 16, color: Colors.black),
-                    ),
+                      const SizedBox(width: 10),
+
+                      /// 🔥 **Иконка выхода**
+                      IconButton(
+                        icon: const Icon(Icons.logout, color: Colors.red, size: 28),
+                        tooltip: "Выйти из аккаунта",
+                        onPressed: _logout, // ✅ Вызываем выход
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 20),
+
                   _buildStatCard("19 Missionen erfüllt", "2680 pts"),
                   _buildStatCard("254504 Schritte", "1609 pts"),
                 ],
               ),
             ),
           ),
-          _buildBottomNavBar(), // ✅ Нижняя панель навигации остается на месте
+          _buildBottomNavBar(),
         ],
       ),
     );
   }
 
-  /// Виджет карточки статистики
+  /// ✅ Виджет карточки статистики
   Widget _buildStatCard(String title, String points) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -97,7 +124,6 @@ class _ProfilePageState extends State<ProfilePage> {
       selectedIndex: _currentIndex,
       onDestinationSelected: (index) {
         if (index != _currentIndex) {
-          // ✅ Переход только если выбрана другая вкладка
           switch (index) {
             case 0:
               Navigator.pushReplacement(
@@ -107,19 +133,17 @@ class _ProfilePageState extends State<ProfilePage> {
               break;
             case 1:
             case 2:
-            // ✅ Здесь можно добавить переход на другие страницы
               break;
             case 3:
-            // ✅ Ничего не делаем, так как уже на странице "Profil"
               break;
           }
         }
       },
       destinations: const [
-        NavigationDestination(icon: Icon(Icons.home), label: 'Startseite'),
-        NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Shop'),
-        NavigationDestination(icon: Icon(Icons.group), label: 'Team'),
-        NavigationDestination(icon: Icon(Icons.person), label: 'Profil'),
+        NavigationDestination(icon: Icon(Icons.home), label: 'Главная'),
+        NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Магазин'),
+        NavigationDestination(icon: Icon(Icons.group), label: 'Команда'),
+        NavigationDestination(icon: Icon(Icons.person), label: 'Профиль'),
       ],
     );
   }

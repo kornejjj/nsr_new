@@ -14,6 +14,29 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   bool _isLoading = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _checkIfInTeam(); // 🔥 Проверяем команду перед загрузкой страницы
+  }
+
+  /// ✅ Проверяем, есть ли у пользователя команда
+  Future<void> _checkIfInTeam() async {
+    String userId = _auth.currentUser!.uid;
+    QuerySnapshot teams = await _firestore
+        .collection('teams')
+        .where('members', arrayContains: userId)
+        .get();
+
+    if (teams.docs.isNotEmpty) {
+      // 🔥 Если пользователь уже в команде → сразу отправляем в MainPage
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => MainPage()),
+      );
+    }
+  }
+
   /// ✅ Создать новую команду
   Future<void> _createTeam() async {
     String teamName = _teamNameController.text.trim();
@@ -26,7 +49,6 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
     String userId = _auth.currentUser!.uid;
 
     try {
-      // 🔹 Проверяем, есть ли уже такая команда
       QuerySnapshot existingTeams = await _firestore
           .collection('teams')
           .where('name', isEqualTo: teamName)
@@ -38,7 +60,6 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
         return;
       }
 
-      // 🔹 Создаём новую команду с текущим пользователем
       await _firestore.collection('teams').add({
         'name': teamName,
         'members': [userId],
@@ -48,11 +69,9 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
       _navigateToMain();
 
     } catch (error) {
-      print("Ошибка Firestore: $error");
-      _showSnackBar("Ошибка создания команды: $error");
-
+      _showSnackBar("Ошибка: $error");
     } finally {
-      setState(() => _isLoading = false); // ✅ Останавливаем индикатор загрузки
+      setState(() => _isLoading = false);
     }
   }
 
@@ -78,8 +97,7 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
       _navigateToMain();
 
     } catch (error) {
-      print("Ошибка Firestore: $error");
-      _showSnackBar("Ошибка присоединения: $error");
+      _showSnackBar("Ошибка: $error");
     }
   }
 
@@ -111,7 +129,6 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
             ),
             const SizedBox(height: 20),
 
-            /// 🔹 Поле ввода для создания команды
             TextField(
               controller: _teamNameController,
               decoration: InputDecoration(
@@ -131,37 +148,21 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
             const Text("Или присоединитесь к команде:", style: TextStyle(fontSize: 18)),
             const SizedBox(height: 10),
 
-            /// 🔹 Список доступных команд
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: _firestore.collection('teams').snapshots(),
-                builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snapshot.hasError) {
-                    return Center(child: Text("Ошибка загрузки: ${snapshot.error}"));
-                  }
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return const Center(child: Text("Нет доступных команд"));
-                  }
-
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                   var teams = snapshot.data!.docs;
                   return ListView.builder(
                     itemCount: teams.length,
                     itemBuilder: (context, index) {
                       var team = teams[index];
-                      var teamName = team['name'];
-                      var members = List<String>.from(team['members']);
-
-                      return Card(
-                        child: ListTile(
-                          title: Text(teamName),
-                          subtitle: Text("Участников: ${members.length}/15"),
-                          trailing: ElevatedButton(
-                            onPressed: () => _joinTeam(team.id, members),
-                            child: const Text("Присоединиться"),
-                          ),
+                      return ListTile(
+                        title: Text(team['name']),
+                        trailing: ElevatedButton(
+                          onPressed: () => _joinTeam(team.id, List<String>.from(team['members'])),
+                          child: const Text("Присоединиться"),
                         ),
                       );
                     },
