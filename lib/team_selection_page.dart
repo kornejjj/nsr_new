@@ -25,25 +25,35 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
     setState(() => _isLoading = true);
     String userId = _auth.currentUser!.uid;
 
-    // Проверяем, есть ли уже такая команда
-    QuerySnapshot existingTeams = await _firestore
-        .collection('teams')
-        .where('name', isEqualTo: teamName)
-        .get();
+    try {
+      // 🔹 Проверяем, есть ли уже такая команда
+      QuerySnapshot existingTeams = await _firestore
+          .collection('teams')
+          .where('name', isEqualTo: teamName)
+          .get();
 
-    if (existingTeams.docs.isNotEmpty) {
-      _showSnackBar("Эта команда уже существует!");
-      setState(() => _isLoading = false);
-      return;
+      if (existingTeams.docs.isNotEmpty) {
+        _showSnackBar("Эта команда уже существует!");
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // 🔹 Создаём новую команду с текущим пользователем
+      await _firestore.collection('teams').add({
+        'name': teamName,
+        'members': [userId],
+      });
+
+      _showSnackBar("Команда успешно создана!");
+      _navigateToMain();
+
+    } catch (error) {
+      print("Ошибка Firestore: $error");
+      _showSnackBar("Ошибка создания команды: $error");
+
+    } finally {
+      setState(() => _isLoading = false); // ✅ Останавливаем индикатор загрузки
     }
-
-    // Создаём новую команду с текущим пользователем
-    await _firestore.collection('teams').add({
-      'name': teamName,
-      'members': [userId],
-    });
-
-    _navigateToMain();
   }
 
   /// ✅ Присоединиться к существующей команде
@@ -60,10 +70,17 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
       return;
     }
 
-    members.add(userId);
-    await _firestore.collection('teams').doc(teamId).update({'members': members});
+    try {
+      members.add(userId);
+      await _firestore.collection('teams').doc(teamId).update({'members': members});
 
-    _navigateToMain();
+      _showSnackBar("Вы успешно присоединились!");
+      _navigateToMain();
+
+    } catch (error) {
+      print("Ошибка Firestore: $error");
+      _showSnackBar("Ошибка присоединения: $error");
+    }
   }
 
   /// 🔄 Переход на `MainPage`
@@ -74,7 +91,7 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
     );
   }
 
-  /// 🔔 Отображение сообщений
+  /// 🔔 Отображение уведомлений
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
@@ -116,10 +133,18 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
 
             /// 🔹 Список доступных команд
             Expanded(
-              child: StreamBuilder(
+              child: StreamBuilder<QuerySnapshot>(
                 stream: _firestore.collection('teams').snapshots(),
                 builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
-                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text("Ошибка загрузки: ${snapshot.error}"));
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(child: Text("Нет доступных команд"));
+                  }
 
                   var teams = snapshot.data!.docs;
                   return ListView.builder(

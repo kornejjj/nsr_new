@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // ✅ Подключаем Firebase
-import 'login_page.dart';  // Можно оставить, но не использовать
+import 'package:firebase_core/firebase_core.dart';
+import 'login_page.dart';
 import 'register_page.dart';
 import 'main_page.dart';
 import 'profile_page.dart';
 import 'edit_profile_page.dart';
-import 'team_selection_page.dart'; // ✅ Добавляем импорт
-
+import 'team_selection_page.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // ✅ Обязательно перед инициализацией Firebase
-  await Firebase.initializeApp(); // ✅ Инициализация Firebase
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
 
   runApp(MyApp());
 }
@@ -20,15 +19,14 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      initialRoute: '/team-selection',  // ✅ Теперь сразу открывается главная страница
+      initialRoute: '/login',  // ✅ Теперь сначала открывается LoginPage
       routes: {
-        '/login': (context) => LoginPage(),  // 🔴 Закомментировано, чтобы не открывалось
+        '/login': (context) => LoginPage(),
         '/register': (context) => RegisterPage(),
+        '/team-selection': (context) => TeamSelectionPage(),  // 🔥 Добавляем сюда
         '/main': (context) => MainPage(),
         '/profile': (context) => ProfilePage(),
         '/edit-profile': (context) => EditProfilePage(),
-        '/team-selection': (context) => TeamSelectionPage(),
-
       },
     );
   }

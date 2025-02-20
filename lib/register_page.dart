@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegisterPage extends StatefulWidget {
   @override
@@ -10,19 +11,44 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
-  String _errorMessage = '';
+  bool _isLoading = false;
+  String? _errorMessage;
 
-  void _register() {
+  /// ✅ Регистрация пользователя
+  Future<void> _register() async {
     if (_formKey.currentState!.validate()) {
-      if (_passwordController.text.trim() != _confirmPasswordController.text.trim()) {
-        setState(() {
-          _errorMessage = "Passwörter stimmen nicht überein";
-        });
+      if (_passwordController.text != _confirmPasswordController.text) {
+        _showSnackBar("Пароли не совпадают");
         return;
       }
-      // Логика регистрации без Firebase
-      Navigator.pushReplacementNamed(context, '/team-selection');
+
+      setState(() => _isLoading = true);
+
+      try {
+        UserCredential userCredential = await FirebaseAuth.instance
+            .createUserWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+        );
+
+        print("✅ Пользователь создан: ${userCredential.user!.uid}");
+        _showSnackBar("Аккаунт создан!");
+
+        // 🔥 После регистрации перенаправляем на выбор команды
+        Navigator.pushReplacementNamed(context, '/team-selection');
+
+      } on FirebaseAuthException catch (e) {
+        setState(() {
+          _errorMessage = e.message;
+          _isLoading = false;
+        });
+      }
     }
+  }
+
+  /// 🔔 Показываем сообщение
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -36,32 +62,40 @@ class _RegisterPageState extends State<RegisterPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text("Registrierung", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-                SizedBox(height: 20),
+                const Text("Регистрация", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 20),
                 TextFormField(
                   controller: _emailController,
-                  decoration: InputDecoration(labelText: "E-Mail"),
-                  validator: (value) => value!.contains("@") ? null : "Ungültige E-Mail",
+                  decoration: const InputDecoration(labelText: "E-Mail"),
+                  validator: (value) => value!.contains("@") ? null : "Введите корректный email",
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 TextFormField(
                   controller: _passwordController,
-                  decoration: InputDecoration(labelText: "Passwort"),
+                  decoration: const InputDecoration(labelText: "Пароль"),
                   obscureText: true,
-                  validator: (value) => value!.length >= 6 ? null : "Mindestens 6 Zeichen",
+                  validator: (value) => value!.length >= 6 ? null : "Минимум 6 символов",
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 TextFormField(
                   controller: _confirmPasswordController,
-                  decoration: InputDecoration(labelText: "Passwort bestätigen"),
+                  decoration: const InputDecoration(labelText: "Повторите пароль"),
                   obscureText: true,
                 ),
-                SizedBox(height: 10),
-                if (_errorMessage.isNotEmpty)
-                  Text(_errorMessage, style: TextStyle(color: Colors.red)),
-                SizedBox(height: 20),
-                ElevatedButton(onPressed: _register, child: Text("Registrieren")),
-                TextButton(onPressed: () => Navigator.pop(context), child: Text("Bereits registriert? Anmelden")),
+                const SizedBox(height: 10),
+                if (_errorMessage != null)
+                  Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _register,
+                  child: _isLoading
+                      ? const CircularProgressIndicator()
+                      : const Text("Зарегистрироваться"),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Уже есть аккаунт? Войти"),
+                ),
               ],
             ),
           ),
