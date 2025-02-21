@@ -4,8 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile_page.dart';
 import 'team_page.dart';
 import 'team_selection_page.dart';
+import 'all_teams_page.dart'; // Импортируем новую страницу
 
-/// Главная страница приложения
 class MainPage extends StatefulWidget {
   @override
   _MainPageState createState() => _MainPageState();
@@ -21,7 +21,6 @@ class _MainPageState extends State<MainPage> {
     ButtonData(Icons.wb_sunny, 'Wetter', Colors.purple),
   ];
 
-  /// 🔥 Получаем имя пользователя из Firestore
   Future<String> _fetchUserName() async {
     String userId = FirebaseAuth.instance.currentUser!.uid;
     DocumentSnapshot userDoc =
@@ -50,8 +49,6 @@ class _MainPageState extends State<MainPage> {
             children: [
               _buildHeader(),
               const SizedBox(height: 15),
-
-              /// 🔥 Динамическое имя пользователя
               FutureBuilder<String>(
                 future: _fetchUserName(),
                 builder: (context, snapshot) {
@@ -75,9 +72,14 @@ class _MainPageState extends State<MainPage> {
                   );
                 },
               ),
-
               const SizedBox(height: 15),
-              const _StatsSection(),
+              _StatsSection(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AllTeamsPage()),
+                ),
+              ),
+              const SizedBox(height: 15),
               Expanded(child: _buildActionButtons()),
             ],
           ),
@@ -86,7 +88,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  /// 📌 Заголовок (Логотип по центру, ракеты и колокольчик)
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
@@ -127,7 +128,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  /// 📌 Кнопки действий
   Widget _buildActionButtons() {
     return Padding(
       padding: const EdgeInsets.all(25),
@@ -155,7 +155,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  /// 📌 Нижняя панель навигации
   Widget _buildBottomNavBar() {
     return NavigationBar(
       selectedIndex: _currentIndex,
@@ -182,7 +181,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  /// ✅ Проверяем, есть ли у пользователя команда
   Future<void> _navigateToTeamPage() async {
     String userId = FirebaseAuth.instance.currentUser!.uid;
 
@@ -205,60 +203,65 @@ class _MainPageState extends State<MainPage> {
   }
 }
 
-/// 📌 Блок статистики (Team)
 class _StatsSection extends StatelessWidget {
-  const _StatsSection();
+  final VoidCallback onTap;
+
+  const _StatsSection({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              blurRadius: 10,
-              spreadRadius: 5,
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              const CircleAvatar(
-                radius: 40,
-                backgroundImage: AssetImage('assets/flag.png'),
-                backgroundColor: Colors.transparent,
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Team Ukraine',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 10),
-                    LinearProgressIndicator(
-                      value: 0.9,
-                      backgroundColor: Colors.grey[200],
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurple),
-                      minHeight: 14,
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      '125.365 Punkte',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.2),
+                blurRadius: 10,
+                spreadRadius: 5,
               ),
             ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  radius: 40,
+                  backgroundImage: AssetImage('assets/flag.png'),
+                  backgroundColor: Colors.transparent,
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Team Ukraine',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 10),
+                      LinearProgressIndicator(
+                        value: 0.9,
+                        backgroundColor: Colors.grey[200],
+                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                        minHeight: 14,
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        '125.365 Punkte',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -266,7 +269,6 @@ class _StatsSection extends StatelessWidget {
   }
 }
 
-/// 📌 Кнопки квадратные
 class _CustomSquareButton extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -306,7 +308,8 @@ class _CustomSquareButton extends StatelessWidget {
               const SizedBox(height: 7),
               Text(
                 text,
-                style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold, color: Colors.white),
+                style: TextStyle(fontSize: fontSize,
+                    fontWeight: FontWeight.bold, color: Colors.white),
               ),
             ],
           ),
@@ -316,7 +319,6 @@ class _CustomSquareButton extends StatelessWidget {
   }
 }
 
-/// 📌 Модель данных для кнопок
 class ButtonData {
   final IconData icon;
   final String text;
