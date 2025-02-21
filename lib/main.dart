@@ -33,34 +33,33 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// ✅ Проверяем, вошёл ли пользователь и есть ли у него команда
+/// ✅ **Проверяем, вошёл ли пользователь и состоит ли он в команде**
 class AuthChecker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(), // 🔥 Следим за входом/выходом пользователя
+      stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return _buildLoadingScreen(); // 🔥 Экран загрузки
         }
 
         User? user = snapshot.data;
 
         if (user == null) {
-          // 🔥 Если пользователь НЕ вошёл → отправляем в LoginPage
-          return LoginPage();
+          return LoginPage(); // 🔥 Если не вошёл → на страницу входа
         }
 
-        // 🔥 Если пользователь вошёл, проверяем его команду
-        return FutureBuilder(
+        return FutureBuilder<bool>(
           future: _checkUserTeam(user.uid),
-          builder: (context, AsyncSnapshot<bool> teamSnapshot) {
+          builder: (context, teamSnapshot) {
             if (teamSnapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              return _buildLoadingScreen(); // 🔄 Ожидаем проверку команды
             }
             if (teamSnapshot.hasError) {
-              return Scaffold(body: Center(child: Text("Ошибка: ${teamSnapshot.error}")));
+              return _buildErrorScreen(teamSnapshot.error.toString());
             }
+
             return teamSnapshot.data == true ? MainPage() : TeamSelectionPage();
           },
         );
@@ -68,13 +67,31 @@ class AuthChecker extends StatelessWidget {
     );
   }
 
-  /// 🔥 Проверяем Firestore, состоит ли пользователь в команде
+  /// 🔥 **Проверяем Firestore: состоит ли пользователь в команде**
   Future<bool> _checkUserTeam(String userId) async {
     QuerySnapshot teams = await FirebaseFirestore.instance
         .collection('teams')
         .where('members', arrayContains: userId)
         .get();
 
-    return teams.docs.isNotEmpty; // ✅ Если есть команда → true, иначе false
+    return teams.docs.isNotEmpty;
+  }
+
+  /// 🔄 **Экран загрузки**
+  Widget _buildLoadingScreen() {
+    return const Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+  }
+
+  /// ❌ **Экран ошибки**
+  Widget _buildErrorScreen(String errorMessage) {
+    return Scaffold(
+      body: Center(
+        child: Text("Ошибка: $errorMessage", style: const TextStyle(color: Colors.red)),
+      ),
+    );
   }
 }

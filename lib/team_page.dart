@@ -12,6 +12,7 @@ class _TeamPageState extends State<TeamPage> {
   String? teamId;
   Map<String, dynamic>? teamData;
   List<Map<String, dynamic>> members = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -19,7 +20,7 @@ class _TeamPageState extends State<TeamPage> {
     _loadTeam();
   }
 
-  /// 🔥 Загружаем данные команды
+  /// 🔥 **Загружаем данные команды**
   Future<void> _loadTeam() async {
     String userId = FirebaseAuth.instance.currentUser!.uid;
 
@@ -37,20 +38,24 @@ class _TeamPageState extends State<TeamPage> {
         teamData = teamInfo;
       });
 
-      _loadMembers(teamInfo['members']);
+      await _loadMembers(teamInfo['members']);
     } else {
       setState(() {
         teamId = null;
         teamData = null;
       });
     }
+
+    setState(() {
+      _isLoading = false;
+    });
   }
 
-  /// 🔥 Загружаем участников команды
+  /// 🔥 **Загружаем участников команды (максимум 15)**
   Future<void> _loadMembers(List<dynamic> memberIds) async {
     List<Map<String, dynamic>> loadedMembers = [];
 
-    for (String userId in memberIds) {
+    for (String userId in memberIds.take(15)) { // 🔥 Ограничение на 15 участников
       var userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
       if (userDoc.exists) {
         loadedMembers.add(userDoc.data() as Map<String, dynamic>);
@@ -67,10 +72,7 @@ class _TeamPageState extends State<TeamPage> {
     return Scaffold(
       bottomNavigationBar: _buildBottomNavBar(),
       appBar: AppBar(
-        title: const Text(
-          "Team",
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
-        ),
+        title: const Text("Моя команда", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
         backgroundColor: Colors.yellow[600],
         elevation: 0,
         actions: [
@@ -80,7 +82,9 @@ class _TeamPageState extends State<TeamPage> {
           ),
         ],
       ),
-      body: teamData == null
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator()) // 🔄 Показываем индикатор загрузки
+          : teamData == null
           ? const Center(child: Text("Вы не состоите в команде", style: TextStyle(fontSize: 18)))
           : Column(
         children: [
@@ -111,7 +115,7 @@ class _TeamPageState extends State<TeamPage> {
             backgroundColor: Colors.white,
             child: CircleAvatar(
               radius: 46,
-              backgroundImage: AssetImage('assets/team_logo.png'), // ✅ Логотип команды
+              backgroundImage: NetworkImage(teamData!['avatar'] ?? 'assets/team_logo.png'), // 🔥 Логотип команды (из БД)
             ),
           ),
           const SizedBox(height: 10),
@@ -134,7 +138,7 @@ class _TeamPageState extends State<TeamPage> {
     );
   }
 
-  /// 📌 **Список участников**
+  /// 📌 **Список участников (максимум 15)**
   Widget _buildMemberList() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -142,10 +146,10 @@ class _TeamPageState extends State<TeamPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            "Mitglieder",
+            "Участники",
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
-          Text("${members.length}/20", style: const TextStyle(color: Colors.grey)),
+          Text("${members.length}/15", style: const TextStyle(color: Colors.grey)), // 🔥 15 участников максимум
           const SizedBox(height: 10),
           Expanded(
             child: ListView.builder(
@@ -157,17 +161,17 @@ class _TeamPageState extends State<TeamPage> {
                   elevation: 3,
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundImage: AssetImage(member['avatar'] ?? 'assets/default_avatar.png'),
+                      backgroundImage: NetworkImage(member['avatar'] ?? 'assets/default_avatar.png'),
                     ),
                     title: Text(
-                      member['name'] ?? "Без имени",
+                      "${member['firstName']} ${member['lastName']}",
                       style: const TextStyle(fontWeight: FontWeight.w500),
                     ),
                     subtitle: Text("${member['points'] ?? 0} Pkt"),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.flash_on, color: Colors.deepPurple, size: 18),
+                        const Icon(Icons.rocket_launch, color: Colors.deepPurple, size: 18),
                         Text("x${member['boost'] ?? 1}", style: const TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ),
@@ -194,10 +198,10 @@ class _TeamPageState extends State<TeamPage> {
         }
       },
       destinations: const [
-        NavigationDestination(icon: Icon(Icons.home), label: 'Startseite'),
-        NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Shop'),
-        NavigationDestination(icon: Icon(Icons.group), label: 'Team'),
-        NavigationDestination(icon: Icon(Icons.person), label: 'Profil'),
+        NavigationDestination(icon: Icon(Icons.home), label: 'Главная'),
+        NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Магазин'),
+        NavigationDestination(icon: Icon(Icons.group), label: 'Команда'),
+        NavigationDestination(icon: Icon(Icons.person), label: 'Профиль'),
       ],
     );
   }

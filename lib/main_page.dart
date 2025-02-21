@@ -21,6 +21,14 @@ class _MainPageState extends State<MainPage> {
     ButtonData(Icons.wb_sunny, 'Wetter', Colors.purple),
   ];
 
+  /// 🔥 Получаем имя пользователя из Firestore
+  Future<String> _fetchUserName() async {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+    DocumentSnapshot userDoc =
+    await FirebaseFirestore.instance.collection('users').doc(userId).get();
+    return userDoc.exists ? userDoc['firstName'] ?? "User" : "User";
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -42,19 +50,35 @@ class _MainPageState extends State<MainPage> {
             children: [
               _buildHeader(),
               const SizedBox(height: 15),
-              const Text(
-                "Let's Go Vika!",
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
-                ),
+
+              /// 🔥 Динамическое имя пользователя
+              FutureBuilder<String>(
+                future: _fetchUserName(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Text(
+                      "Let's Go!",
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 24,
+                      ),
+                    );
+                  }
+                  return Text(
+                    "Let's Go ${snapshot.data}!",
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 24,
+                    ),
+                  );
+                },
               ),
+
               const SizedBox(height: 15),
-              const StatsSection(), // ✅ Добавлен новый класс
-              Expanded(
-                child: _buildActionButtons(),
-              ),
+              const _StatsSection(),
+              Expanded(child: _buildActionButtons()),
             ],
           ),
         ),
@@ -119,7 +143,7 @@ class _MainPageState extends State<MainPage> {
         itemCount: _actionButtons.length,
         itemBuilder: (context, index) {
           final button = _actionButtons[index];
-          return CustomSquareButton(
+          return _CustomSquareButton(
             icon: button.icon,
             text: button.text,
             color: button.color,
@@ -150,10 +174,10 @@ class _MainPageState extends State<MainPage> {
         }
       },
       destinations: const [
-        NavigationDestination(icon: Icon(Icons.home), label: 'Startseite'),
-        NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Shop'),
-        NavigationDestination(icon: Icon(Icons.group), label: 'Team'),
-        NavigationDestination(icon: Icon(Icons.person), label: 'Profil'),
+        NavigationDestination(icon: Icon(Icons.home), label: 'Главная'),
+        NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Магазин'),
+        NavigationDestination(icon: Icon(Icons.group), label: 'Команда'),
+        NavigationDestination(icon: Icon(Icons.person), label: 'Профиль'),
       ],
     );
   }
@@ -182,8 +206,8 @@ class _MainPageState extends State<MainPage> {
 }
 
 /// 📌 Блок статистики (Team)
-class StatsSection extends StatelessWidget {
-  const StatsSection();
+class _StatsSection extends StatelessWidget {
+  const _StatsSection();
 
   @override
   Widget build(BuildContext context) {
@@ -243,14 +267,14 @@ class StatsSection extends StatelessWidget {
 }
 
 /// 📌 Кнопки квадратные
-class CustomSquareButton extends StatelessWidget {
+class _CustomSquareButton extends StatelessWidget {
   final IconData icon;
   final String text;
   final Color color;
   final double iconSize;
   final double fontSize;
 
-  const CustomSquareButton({
+  const _CustomSquareButton({
     required this.icon,
     required this.text,
     required this.color,
@@ -269,7 +293,7 @@ class CustomSquareButton extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [color.withAlpha(180), color],
+              colors: [color.withOpacity(0.8), color],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -283,7 +307,6 @@ class CustomSquareButton extends StatelessWidget {
               Text(
                 text,
                 style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold, color: Colors.white),
-                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -293,7 +316,7 @@ class CustomSquareButton extends StatelessWidget {
   }
 }
 
-/// ✅ Добавляем класс `ButtonData`
+/// 📌 Модель данных для кнопок
 class ButtonData {
   final IconData icon;
   final String text;

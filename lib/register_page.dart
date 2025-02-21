@@ -32,7 +32,7 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() => _isLoading = true);
 
     try {
-      // ✅ Регистрируем пользователя в Firebase
+      // ✅ Регистрируем пользователя в Firebase Auth
       UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
@@ -40,12 +40,13 @@ class _RegisterPageState extends State<RegisterPage> {
 
       // ✅ Сохраняем данные пользователя в Firestore
       await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
-        'firstName': _firstNameController.text.trim(),
-        'lastName': _lastNameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'uid': userCredential.user!.uid,
-        'avatar': 'assets/default_avatar.png',
-        'points': 0,
+        'firstName': _firstNameController.text.trim(),  // 👤 Имя
+        'lastName': _lastNameController.text.trim(),    // 👤 Фамилия
+        'email': _emailController.text.trim(),          // 📩 Почта
+        'uid': userCredential.user!.uid,               // 🔑 Уникальный ID
+        'avatar': 'assets/default_avatar.png',         // 🖼 Аватар по умолчанию
+        'points': 0,                                   // 🏆 Очки (начинаются с 0)
+        'teamId': null,                                // 🔹 Пока без команды
       });
 
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => MainPage()));
@@ -56,6 +57,7 @@ class _RegisterPageState extends State<RegisterPage> {
       });
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
