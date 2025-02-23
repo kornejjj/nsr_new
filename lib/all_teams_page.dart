@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'main_page.dart';
+import 'team_page.dart'; // Импортируем TeamPage
 
 class AllTeamsPage extends StatelessWidget {
   const AllTeamsPage({super.key});
@@ -60,6 +61,7 @@ class AllTeamsPage extends StatelessWidget {
                   name: team['name'] ?? 'Без названия',
                   points: team['points']?.toString() ?? '0',
                   membersCount: (team['members'] as List?)?.length.toString() ?? '0',
+                  teamId: teams[index].id, // Передаем teamId
                 );
               },
             );
@@ -93,11 +95,13 @@ class _TeamCard extends StatelessWidget {
   final String name;
   final String points;
   final String membersCount;
+  final String teamId; // Добавляем teamId
 
   const _TeamCard({
     required this.name,
     required this.points,
     required this.membersCount,
+    required this.teamId, // Принимаем teamId
   });
 
   @override
@@ -106,24 +110,35 @@ class _TeamCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       elevation: 5,
       margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              name,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+      child: InkWell(
+        onTap: () {
+          // Переход на страницу команды
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TeamPage(teamId: teamId), // Передаем teamId
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _buildInfoItem(Icons.people, '$membersCount участников'),
-                const SizedBox(width: 16),
-                _buildInfoItem(Icons.star, '$points очков'),
-              ],
-            ),
-          ],
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _buildInfoItem(Icons.people, '$membersCount участников'),
+                  const SizedBox(width: 16),
+                  _buildInfoItem(Icons.star, '$points очков'),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

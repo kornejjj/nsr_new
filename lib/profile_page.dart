@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'main_page.dart';
 import 'edit_profile_page.dart';
-import 'login_page.dart'; // ✅ Подключаем страницу входа
+import 'login_page.dart';
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -10,9 +11,41 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  int _currentIndex = 3; // ✅ Устанавливаем "Profil" активным
+  int _currentIndex = 3;
+  String userName = "Загрузка...";
+  String teamName = "Без команды";
+  String avatarUrl = "assets/default_avatar.png";
 
-  /// ✅ Функция выхода из аккаунта
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  /// 🔥 Загружаем данные пользователя из Firestore
+  Future<void> _loadUserData() async {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+    DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+
+    if (userDoc.exists) {
+      setState(() {
+        userName = "${userDoc['firstName']} ${userDoc['lastName']}";
+        avatarUrl = userDoc['avatar'] ?? "assets/default_avatar.png";
+      });
+
+      // Загружаем название команды
+      if (userDoc['teamId'] != null) {
+        DocumentSnapshot teamDoc = await FirebaseFirestore.instance.collection('teams').doc(userDoc['teamId']).get();
+        if (teamDoc.exists) {
+          setState(() {
+            teamName = teamDoc['name'];
+          });
+        }
+      }
+    }
+  }
+
+  /// 🔥 Выход из аккаунта
   void _logout() async {
     await FirebaseAuth.instance.signOut();
     Navigator.pushReplacement(
@@ -26,10 +59,10 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Center(child: Text("Мой профиль")), // ✅ Центрируем заголовок
+        title: const Center(child: Text("Мой профиль")),
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
-        automaticallyImplyLeading: false, // ❌ Убираем кнопку "Назад"
+        automaticallyImplyLeading: false,
       ),
       body: Column(
         children: [
@@ -38,18 +71,18 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  const CircleAvatar(
+                  CircleAvatar(
                     radius: 60,
-                    backgroundImage: AssetImage('assets/profile.jpg'), // ✅ Фото профиля
+                    backgroundImage: avatarUrl.startsWith("http") ? NetworkImage(avatarUrl) : AssetImage(avatarUrl) as ImageProvider,
                   ),
                   const SizedBox(height: 10),
-                  const Text(
-                    "Artem Kornienko",
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  Text(
+                    userName,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    "🚀 Team Ukraine 🇺🇦",
+                    "🚀 $teamName",
                     style: TextStyle(fontSize: 18, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 10),
@@ -82,7 +115,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       IconButton(
                         icon: const Icon(Icons.logout, color: Colors.red, size: 28),
                         tooltip: "Выйти из аккаунта",
-                        onPressed: _logout, // ✅ Вызываем выход
+                        onPressed: _logout,
                       ),
                     ],
                   ),
