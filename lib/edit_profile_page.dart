@@ -1,7 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
-class EditProfilePage extends StatelessWidget {
+class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
+
+  @override
+  _EditProfilePageState createState() => _EditProfilePageState();
+}
+
+class _EditProfilePageState extends State<EditProfilePage> {
+  File? _image;
+
+  Future<void> _pickImage(ImageSource source) async {
+    final pickedFile = await ImagePicker().pickImage(source: source);
+
+    if (pickedFile != null) {
+      setState(() {
+        _image = File(pickedFile.path);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +34,7 @@ class EditProfilePage extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         child: Column(
           children: [
-            _buildProfileHeader(context), // ✅ Заголовок с аватаром
+            _buildProfileHeader(context),
             const SizedBox(height: 20),
             Expanded(
               child: ListView(
@@ -66,13 +85,44 @@ class EditProfilePage extends StatelessWidget {
     );
   }
 
-  /// ✅ **Шапка профиля (Аватар + Имя)**
   Widget _buildProfileHeader(BuildContext context) {
     return Column(
       children: [
-        const CircleAvatar(
-          radius: 50,
-          backgroundImage: AssetImage("assets/profile.jpg"), // ✅ Заглушка, замените на ваш путь
+        GestureDetector(
+          onTap: () {
+            showModalBottomSheet(
+              context: context,
+              builder: (BuildContext context) {
+                return SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.photo_library),
+                        title: const Text('Aus Galerie auswählen'),
+                        onTap: () {
+                          _pickImage(ImageSource.gallery);
+                          Navigator.pop(context);
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.camera_alt),
+                        title: const Text('Foto aufnehmen'),
+                        onTap: () {
+                          _pickImage(ImageSource.camera);
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+          child: CircleAvatar(
+            radius: 50,
+            backgroundImage: _image != null ? FileImage(_image!) : const AssetImage("assets/profile.jpg") as ImageProvider,
+          ),
         ),
         const SizedBox(height: 10),
         Text(
@@ -87,7 +137,6 @@ class EditProfilePage extends StatelessWidget {
     );
   }
 
-  /// ✅ **Элемент списка настроек**
   Widget _buildSettingItem(
       BuildContext context, {
         required IconData icon,
@@ -114,14 +163,12 @@ class EditProfilePage extends StatelessWidget {
     );
   }
 
-  /// ✅ **Функция перехода на другой экран**
   void _navigateTo(BuildContext context, String page) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Navigating to: $page")),
     );
   }
 
-  /// ✅ **Диалог подтверждения удаления аккаунта**
   void _showDeleteConfirmation(BuildContext context) {
     showDialog(
       context: context,

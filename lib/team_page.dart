@@ -4,12 +4,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'main_page.dart';
 
 class TeamPage extends StatefulWidget {
+  final String teamId; // Принимаем teamId
+
+  const TeamPage({super.key, required this.teamId}); // teamId обязателен
+
   @override
   _TeamPageState createState() => _TeamPageState();
 }
 
 class _TeamPageState extends State<TeamPage> {
-  String? teamId;
   Map<String, dynamic>? teamData;
   List<Map<String, dynamic>> members = [];
   bool _isLoading = true;
@@ -20,42 +23,39 @@ class _TeamPageState extends State<TeamPage> {
     _loadTeam();
   }
 
-  /// 🔥 **Загружаем данные команды**
+  /// 🔥 Загружаем данные команды по teamId
   Future<void> _loadTeam() async {
-    String userId = FirebaseAuth.instance.currentUser!.uid;
+    try {
+      var teamDoc = await FirebaseFirestore.instance
+          .collection('teams')
+          .doc(widget.teamId)
+          .get();
 
-    QuerySnapshot teams = await FirebaseFirestore.instance
-        .collection('teams')
-        .where('members', arrayContains: userId)
-        .get();
+      if (teamDoc.exists) {
+        setState(() {
+          teamData = teamDoc.data() as Map<String, dynamic>;
+        });
 
-    if (teams.docs.isNotEmpty) {
-      var teamDoc = teams.docs.first;
-      var teamInfo = teamDoc.data() as Map<String, dynamic>;
-
+        await _loadMembers(teamData!['members']);
+      } else {
+        setState(() {
+          teamData = null;
+        });
+      }
+    } catch (error) {
+      print('Ошибка при загрузке команды: $error');
+    } finally {
       setState(() {
-        teamId = teamDoc.id;
-        teamData = teamInfo;
-      });
-
-      await _loadMembers(teamInfo['members']);
-    } else {
-      setState(() {
-        teamId = null;
-        teamData = null;
+        _isLoading = false;
       });
     }
-
-    setState(() {
-      _isLoading = false;
-    });
   }
 
-  /// 🔥 **Загружаем участников команды (максимум 15)**
+  /// 🔥 Загружаем участников команды
   Future<void> _loadMembers(List<dynamic> memberIds) async {
     List<Map<String, dynamic>> loadedMembers = [];
 
-    for (String userId in memberIds.take(15)) { // 🔥 Ограничение на 15 участников
+    for (String userId in memberIds.take(15)) {
       var userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
       if (userDoc.exists) {
         loadedMembers.add(userDoc.data() as Map<String, dynamic>);
@@ -72,7 +72,7 @@ class _TeamPageState extends State<TeamPage> {
     return Scaffold(
       bottomNavigationBar: _buildBottomNavBar(),
       appBar: AppBar(
-        title: const Text("Моя команда", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+        title: const Text("Команда", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
         backgroundColor: Colors.yellow[600],
         elevation: 0,
         actions: [
@@ -85,7 +85,7 @@ class _TeamPageState extends State<TeamPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator()) // 🔄 Показываем индикатор загрузки
           : teamData == null
-          ? const Center(child: Text("Вы не состоите в команде", style: TextStyle(fontSize: 18)))
+          ? const Center(child: Text("Команда не найдена", style: TextStyle(fontSize: 18)))
           : Column(
         children: [
           _buildTeamHeader(),
@@ -96,7 +96,7 @@ class _TeamPageState extends State<TeamPage> {
     );
   }
 
-  /// 📌 **Хедер команды (аватарка, название, очки)**
+  /// 📌 Хедер команды (аватарка, название, очки)
   Widget _buildTeamHeader() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -138,7 +138,7 @@ class _TeamPageState extends State<TeamPage> {
     );
   }
 
-  /// 📌 **Список участников (максимум 15)**
+  /// 📌 Список участников
   Widget _buildMemberList() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -185,7 +185,7 @@ class _TeamPageState extends State<TeamPage> {
     );
   }
 
-  /// 📌 **Закреплённая нижняя панель**
+  /// 📌 Закреплённая нижняя панель
   Widget _buildBottomNavBar() {
     return NavigationBar(
       selectedIndex: 2, // ✅ Выбрана вкладка Team

@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile_page.dart';
 import 'team_page.dart';
 import 'team_selection_page.dart';
-import 'all_teams_page.dart'; // Импортируем новую страницу
+import 'all_teams_page.dart';
 
 class MainPage extends StatefulWidget {
   @override
@@ -26,6 +26,25 @@ class _MainPageState extends State<MainPage> {
     DocumentSnapshot userDoc =
     await FirebaseFirestore.instance.collection('users').doc(userId).get();
     return userDoc.exists ? userDoc['firstName'] ?? "User" : "User";
+  }
+
+  Future<Map<String, dynamic>?> _fetchUserTeam() async {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+
+    try {
+      QuerySnapshot teams = await FirebaseFirestore.instance
+          .collection('teams')
+          .where('members', arrayContains: userId)
+          .get();
+
+      if (teams.docs.isNotEmpty) {
+        return teams.docs.first.data() as Map<String, dynamic>;
+      }
+    } catch (e) {
+      print('Ошибка при загрузке команды: $e');
+    }
+
+    return null;
   }
 
   @override
@@ -78,6 +97,7 @@ class _MainPageState extends State<MainPage> {
                   context,
                   MaterialPageRoute(builder: (context) => const AllTeamsPage()),
                 ),
+                teamData: _fetchUserTeam(),
               ),
               const SizedBox(height: 15),
               Expanded(child: _buildActionButtons()),
@@ -190,9 +210,15 @@ class _MainPageState extends State<MainPage> {
         .get();
 
     if (teams.docs.isNotEmpty) {
+      // Получаем teamId из первой найденной команды
+      String teamId = teams.docs.first.id;
+
+      // Передаем teamId в TeamPage
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => TeamPage()),
+        MaterialPageRoute(
+          builder: (context) => TeamPage(teamId: teamId), // Передаем teamId
+        ),
       );
     } else {
       Navigator.push(
@@ -205,66 +231,85 @@ class _MainPageState extends State<MainPage> {
 
 class _StatsSection extends StatelessWidget {
   final VoidCallback onTap;
+  final Future<Map<String, dynamic>?> teamData;
 
-  const _StatsSection({required this.onTap});
+  const _StatsSection({
+    required this.onTap,
+    required this.teamData,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: teamData,
+      builder: (context, snapshot) {
+        final teamName = snapshot.data?['name'] ?? 'Выберите команду';
+        final teamPoints = snapshot.data?['points']?.toString() ?? '0';
+        final progress = (snapshot.data?['progress'] as double?) ?? 0.0;
+
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: InkWell(
+            onTap: onTap,
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.withOpacity(0.2),
-                blurRadius: 10,
-                spreadRadius: 5,
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  radius: 40,
-                  backgroundImage: AssetImage('assets/flag.png'),
-                  backgroundColor: Colors.transparent,
-                ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Team Ukraine',
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 10),
-                      LinearProgressIndicator(
-                        value: 0.9,
-                        backgroundColor: Colors.grey[200],
-                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurple),
-                        minHeight: 14,
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        '125.365 Punkte',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                      ),
-                    ],
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.2),
+                    blurRadius: 10,
+                    spreadRadius: 5,
                   ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 40,
+                      backgroundImage: AssetImage('assets/flag.png'),
+                      backgroundColor: Colors.transparent,
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            teamName,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          LinearProgressIndicator(
+                            value: progress,
+                            backgroundColor: Colors.grey[200],
+                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+                            minHeight: 14,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            '$teamPoints Punkte',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
