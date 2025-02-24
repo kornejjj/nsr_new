@@ -1,26 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 
-class EditProfilePage extends StatefulWidget {
+class EditProfilePage extends StatelessWidget {
   const EditProfilePage({super.key});
-
-  @override
-  _EditProfilePageState createState() => _EditProfilePageState();
-}
-
-class _EditProfilePageState extends State<EditProfilePage> {
-  File? _image;
-
-  Future<void> _pickImage(ImageSource source) async {
-    final pickedFile = await ImagePicker().pickImage(source: source);
-
-    if (pickedFile != null) {
-      setState(() {
-        _image = File(pickedFile.path);
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,41 +69,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Widget _buildProfileHeader(BuildContext context) {
     return Column(
       children: [
-        GestureDetector(
-          onTap: () {
-            showModalBottomSheet(
-              context: context,
-              builder: (BuildContext context) {
-                return SafeArea(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.photo_library),
-                        title: const Text('Aus Galerie auswählen'),
-                        onTap: () {
-                          _pickImage(ImageSource.gallery);
-                          Navigator.pop(context);
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.camera_alt),
-                        title: const Text('Foto aufnehmen'),
-                        onTap: () {
-                          _pickImage(ImageSource.camera);
-                          Navigator.pop(context);
-                        },
-                      ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
-          child: CircleAvatar(
-            radius: 50,
-            backgroundImage: _image != null ? FileImage(_image!) : const AssetImage("assets/profile.jpg") as ImageProvider,
-          ),
+        const CircleAvatar(
+          radius: 50,
+          backgroundImage: AssetImage("assets/profile.jpg"),
         ),
         const SizedBox(height: 10),
         Text(

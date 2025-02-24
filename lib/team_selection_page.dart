@@ -23,13 +23,11 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
   /// ✅ Проверяем, есть ли у пользователя команда
   Future<void> _checkIfInTeam() async {
     String userId = _auth.currentUser!.uid;
-    QuerySnapshot teams = await _firestore
-        .collection('teams')
-        .where('members', arrayContains: userId)
-        .get();
+    DocumentSnapshot userDoc =
+    await _firestore.collection('users').doc(userId).get();
 
-    if (teams.docs.isNotEmpty) {
-      // 🔥 Если пользователь уже в команде → сразу отправляем в MainPage
+    if (userDoc.exists && userDoc['teamId'] != null) {
+      // 🔥 Если `teamId` уже есть, отправляем на главную страницу
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => MainPage()),
@@ -60,14 +58,17 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
         return;
       }
 
-      await _firestore.collection('teams').add({
+      // 🔥 Создаём команду
+      DocumentReference teamRef = await _firestore.collection('teams').add({
         'name': teamName,
         'members': [userId],
       });
 
+      // 🔥 **Обновляем `teamId` у пользователя**
+      await _firestore.collection('users').doc(userId).update({'teamId': teamRef.id});
+
       _showSnackBar("Команда успешно создана!");
       _navigateToMain();
-
     } catch (error) {
       _showSnackBar("Ошибка: $error");
     } finally {
@@ -90,12 +91,17 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
     }
 
     try {
+      // Добавляем пользователя в массив `members`
       members.add(userId);
+
+      // 🔥 Обновляем команду (добавляем пользователя)
       await _firestore.collection('teams').doc(teamId).update({'members': members});
+
+      // 🔥 **Обновляем `teamId` у пользователя**
+      await _firestore.collection('users').doc(userId).update({'teamId': teamId});
 
       _showSnackBar("Вы успешно присоединились!");
       _navigateToMain();
-
     } catch (error) {
       _showSnackBar("Ошибка: $error");
     }
@@ -111,7 +117,8 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
 
   /// 🔔 Отображение уведомлений
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -128,7 +135,6 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
               style: TextStyle(fontSize: 18),
             ),
             const SizedBox(height: 20),
-
             TextField(
               controller: _teamNameController,
               decoration: InputDecoration(
@@ -143,16 +149,17 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
                   ? const CircularProgressIndicator()
                   : const Text("Создать команду"),
             ),
-
             const SizedBox(height: 30),
-            const Text("Или присоединитесь к команде:", style: TextStyle(fontSize: 18)),
+            const Text("Или присоединитесь к команде:",
+                style: TextStyle(fontSize: 18)),
             const SizedBox(height: 10),
-
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: _firestore.collection('teams').snapshots(),
                 builder: (context, snapshot) {
-                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
                   var teams = snapshot.data!.docs;
                   return ListView.builder(
                     itemCount: teams.length,
@@ -161,7 +168,8 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
                       return ListTile(
                         title: Text(team['name']),
                         trailing: ElevatedButton(
-                          onPressed: () => _joinTeam(team.id, List<String>.from(team['members'])),
+                          onPressed: () => _joinTeam(team.id,
+                              List<String>.from(team['members'])),
                           child: const Text("Присоединиться"),
                         ),
                       );

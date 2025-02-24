@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
-import 'main_page.dart';
+import 'team_selection_page.dart'; // 🛠 Подключаем страницу выбора команды
 
 class RegisterPage extends StatefulWidget {
   @override
@@ -40,16 +40,20 @@ class _RegisterPageState extends State<RegisterPage> {
 
       // ✅ Сохраняем данные пользователя в Firestore
       await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
-        'firstName': _firstNameController.text.trim(),  // 👤 Имя
-        'lastName': _lastNameController.text.trim(),    // 👤 Фамилия
-        'email': _emailController.text.trim(),          // 📩 Почта
-        'uid': userCredential.user!.uid,               // 🔑 Уникальный ID
-        'avatar': 'assets/default_avatar.png',         // 🖼 Аватар по умолчанию
-        'points': 0,                                   // 🏆 Очки (начинаются с 0)
-        'teamId': null,                                // 🔹 Пока без команды
+        'firstName': _firstNameController.text.trim(),
+        'lastName': _lastNameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'uid': userCredential.user!.uid,
+        'avatar': 'assets/default_avatar.png',
+        'points': 0,
+        'teamId': null, // 🔹 У пользователя пока нет команды
       });
 
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => MainPage()));
+      // 🔥 После регистрации отправляем пользователя на `TeamSelectionPage`
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => TeamSelectionPage()),
+      );
     } on FirebaseAuthException catch (e) {
       setState(() {
         _errorMessage = e.message;
@@ -57,7 +61,6 @@ class _RegisterPageState extends State<RegisterPage> {
       });
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -78,58 +81,31 @@ class _RegisterPageState extends State<RegisterPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  /// 📌 **Логотип**
                   Image.asset('assets/logo.png', height: 100),
-
                   const SizedBox(height: 20),
-
                   const Text(
                     "Создайте аккаунт",
                     style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black),
                   ),
-
                   const SizedBox(height: 30),
-
-                  /// 📌 **Поле Имя**
                   _buildTextField(_firstNameController, "Имя", false),
-
                   const SizedBox(height: 15),
-
-                  /// 📌 **Поле Фамилия**
                   _buildTextField(_lastNameController, "Фамилия", false),
-
                   const SizedBox(height: 15),
-
-                  /// 📌 **Поле Email**
                   _buildTextField(_emailController, "E-Mail", false),
-
                   const SizedBox(height: 15),
-
-                  /// 📌 **Поле Пароль**
                   _buildTextField(_passwordController, "Пароль", true),
-
                   const SizedBox(height: 15),
-
-                  /// 📌 **Поле Подтверждение пароля**
                   _buildTextField(_confirmPasswordController, "Повторите пароль", true),
-
                   const SizedBox(height: 10),
-
-                  /// 🔥 **Ошибка**
                   if (_errorMessage != null)
                     Text(
                       _errorMessage!,
                       style: const TextStyle(color: Colors.red, fontSize: 14),
                     ),
-
                   const SizedBox(height: 20),
-
-                  /// 📌 **Кнопка "Создать аккаунт"**
                   _buildPrimaryButton("Создать аккаунт", _register),
-
                   const SizedBox(height: 10),
-
-                  /// 📌 **Кнопка "Уже есть аккаунт? Войти"**
                   _buildSecondaryButton("Уже есть аккаунт? Войти", () {
                     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoginPage()));
                   }),
@@ -142,7 +118,6 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  /// 📌 **Поле ввода (Имя, Фамилия, Email, Пароль)**
   Widget _buildTextField(TextEditingController controller, String label, bool isPassword) {
     return TextFormField(
       controller: controller,
@@ -161,21 +136,16 @@ class _RegisterPageState extends State<RegisterPage> {
             : null,
       ),
       validator: (value) {
-        if (value == null || value.isEmpty) {
-          return "Поле не должно быть пустым";
-        }
+        if (value == null || value.isEmpty) return "Поле не должно быть пустым";
         if (!isPassword && label == "E-Mail" && !RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").hasMatch(value)) {
           return "Некорректный email";
         }
-        if (isPassword && value.length < 6) {
-          return "Минимум 6 символов";
-        }
+        if (isPassword && value.length < 6) return "Минимум 6 символов";
         return null;
       },
     );
   }
 
-  /// 📌 **Основная кнопка (жёлтая)**
   Widget _buildPrimaryButton(String text, VoidCallback onPressed) {
     return SizedBox(
       width: double.infinity,
@@ -193,7 +163,6 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  /// 📌 **Второстепенная кнопка (контурная)**
   Widget _buildSecondaryButton(String text, VoidCallback onPressed) {
     return SizedBox(
       width: double.infinity,
