@@ -1,7 +1,70 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class EditProfilePage extends StatelessWidget {
+class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
+
+  @override
+  _EditProfilePageState createState() => _EditProfilePageState();
+}
+
+class _EditProfilePageState extends State<EditProfilePage> {
+  String avatarUrl = "";
+  String userName = "Loading...";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  // 📌 Загружаем данные пользователя из Firestore
+  Future<void> _loadUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final doc = await FirebaseFirestore.instance.collection("users").doc(user.uid).get();
+    if (doc.exists) {
+      setState(() {
+        avatarUrl = doc.data()?["avatar"] ?? "";
+        userName = "${doc.data()?["firstName"] ?? ""} ${doc.data()?["lastName"] ?? ""}";
+      });
+    }
+  }
+
+  // 📌 Загружаем новый аватар
+  Future<void> _uploadAvatar() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image == null) return;
+
+    try {
+      File file = File(image.path);
+      Reference storageRef = FirebaseStorage.instance.ref().child('users/${user.uid}/avatar.jpg');
+      await storageRef.putFile(file);
+
+      String downloadUrl = await storageRef.getDownloadURL();
+
+      await FirebaseFirestore.instance.collection("users").doc(user.uid).update({
+        "avatar": downloadUrl
+      });
+
+      setState(() {
+        avatarUrl = downloadUrl;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Аватар обновлён!")));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Ошибка: $e")));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +78,7 @@ class EditProfilePage extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         child: Column(
           children: [
-            _buildProfileHeader(context),
+            _buildProfileHeader(),
             const SizedBox(height: 20),
             Expanded(
               child: ListView(
@@ -66,21 +129,35 @@ class EditProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileHeader(BuildContext context) {
+  Widget _buildProfileHeader() {
     return Column(
       children: [
-        const CircleAvatar(
-          radius: 50,
-          backgroundImage: AssetImage("assets/profile.jpg"),
+        GestureDetector(
+          onTap: _uploadAvatar,
+          child: Stack(
+            children: [
+              CircleAvatar(
+                radius: 50,
+                backgroundImage: avatarUrl.isNotEmpty
+                    ? NetworkImage(avatarUrl)
+                    : const AssetImage("assets/profile.jpg") as ImageProvider,
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: Colors.blue,
+                  child: const Icon(Icons.edit, color: Colors.white, size: 18),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 10),
         Text(
-          "Max Mustermann",
+          userName,
           style: Theme.of(context).textTheme.headlineSmall!.copyWith(fontWeight: FontWeight.bold),
-        ),
-        Text(
-          "🚀 Team Germany 🇩🇪",
-          style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: Colors.grey),
         ),
       ],
     );

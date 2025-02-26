@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.example.nonstop_app-mergeDebugResources-12:/values-en-rAU/values-en-rAU.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\akorn\\.gradle\\caches\\transforms-3\\7e6ef638166e99ace5ea09d122dd6835\\transformed\\core-1.9.0\\res\\values-en-rAU\\values-en-rAU.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "100",
+                        "endOffsets": "151"
+                    }
+                }
+            ]
+        }
+    ]
+}
