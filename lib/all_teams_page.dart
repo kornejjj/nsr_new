@@ -57,10 +57,15 @@ class AllTeamsPage extends StatelessWidget {
               itemCount: teams.length,
               itemBuilder: (context, index) {
                 final team = teams[index].data() as Map<String, dynamic>;
+
+                // 🛠 Проверяем `members`, чтобы избежать ошибки
+                final membersField = team['members'];
+                final int membersCount = (membersField is List) ? membersField.length : 0;
+
                 return _TeamCard(
                   name: team['name'] ?? 'Без названия',
                   points: team['points']?.toString() ?? '0',
-                  membersCount: (team['members'] as List?)?.length.toString() ?? '0',
+                  membersCount: membersCount.toString(),
                   teamId: teams[index].id, // Передаем teamId
                 );
               },
