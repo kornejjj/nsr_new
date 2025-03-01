@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'main_page.dart';
+import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
 
 class TeamSelectionPage extends StatefulWidget {
   @override
@@ -125,6 +126,17 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Выбор команды")),
+      bottomNavigationBar: BottomNavBar( // Используем BottomNavBar
+        currentIndex: 2,
+        onDestinationSelected: (index) {
+          if (index == 0) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => MainPage()),
+            );
+          }
+        },
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(

@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -15,6 +16,7 @@ class EditProfilePage extends StatefulWidget {
 class _EditProfilePageState extends State<EditProfilePage> {
   String avatarUrl = "";
   String userName = "Loading...";
+  int _currentIndex = 3; // Текущий индекс для BottomNavBar
 
   @override
   void initState() {
@@ -73,6 +75,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
         title: const Text("Profil bearbeiten"),
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
+        automaticallyImplyLeading: false, // Убираем стрелку назад
+      ),
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),

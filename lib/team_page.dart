@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'main_page.dart';
+import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
+import 'edit_team_page.dart'; // Импортируем EditTeamPage
 
 class TeamPage extends StatefulWidget {
-  final String teamId; // Принимаем teamId
+  final String teamId;
 
-  const TeamPage({super.key, required this.teamId}); // teamId обязателен
+  const TeamPage({super.key, required this.teamId});
 
   @override
   _TeamPageState createState() => _TeamPageState();
@@ -70,15 +72,32 @@ class _TeamPageState extends State<TeamPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      bottomNavigationBar: _buildBottomNavBar(),
+      bottomNavigationBar: BottomNavBar( // Используем BottomNavBar
+        currentIndex: 2,
+        onDestinationSelected: (index) {
+          if (index == 0) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => MainPage()),
+            );
+          }
+        },
+      ),
       appBar: AppBar(
         title: const Text("Команда", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
-        backgroundColor: Colors.yellow[600],
+        backgroundColor: Colors.yellow.shade600,
         elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings, color: Colors.black),
-            onPressed: () {}, // 🔧 Настройки команды
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => EditTeamPage(teamId: widget.teamId),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -182,27 +201,6 @@ class _TeamPageState extends State<TeamPage> {
           ),
         ],
       ),
-    );
-  }
-
-  /// 📌 Закреплённая нижняя панель
-  Widget _buildBottomNavBar() {
-    return NavigationBar(
-      selectedIndex: 2, // ✅ Выбрана вкладка Team
-      onDestinationSelected: (index) {
-        if (index == 0) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => MainPage()),
-          );
-        }
-      },
-      destinations: const [
-        NavigationDestination(icon: Icon(Icons.home), label: 'Главная'),
-        NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Магазин'),
-        NavigationDestination(icon: Icon(Icons.group), label: 'Команда'),
-        NavigationDestination(icon: Icon(Icons.person), label: 'Профиль'),
-      ],
     );
   }
 }

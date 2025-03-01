@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'main_page.dart';
 import 'edit_profile_page.dart';
 import 'login_page.dart';
+import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -11,7 +12,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  int _currentIndex = 3;
+  int _currentIndex = 3; // Текущий индекс для BottomNavBar
   String userName = "Загрузка...";
   String teamName = "Без команды";
   String avatarUrl = "assets/default_avatar.png";
@@ -22,7 +23,6 @@ class _ProfilePageState extends State<ProfilePage> {
     _loadUserData();
   }
 
-  /// 🔥 Загружаем данные пользователя из Firestore
   Future<void> _loadUserData() async {
     String userId = FirebaseAuth.instance.currentUser!.uid;
     DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
@@ -33,7 +33,6 @@ class _ProfilePageState extends State<ProfilePage> {
         avatarUrl = userDoc['avatar'] ?? "assets/default_avatar.png";
       });
 
-      // Загружаем название команды
       if (userDoc['teamId'] != null) {
         DocumentSnapshot teamDoc = await FirebaseFirestore.instance.collection('teams').doc(userDoc['teamId']).get();
         if (teamDoc.exists) {
@@ -45,7 +44,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  /// 🔥 Выход из аккаунта
   void _logout() async {
     await FirebaseAuth.instance.signOut();
     Navigator.pushReplacement(
@@ -63,6 +61,21 @@ class _ProfilePageState extends State<ProfilePage> {
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
         automaticallyImplyLeading: false,
+      ),
+      bottomNavigationBar: BottomNavBar( // Используем BottomNavBar
+        currentIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+
+          if (index == 0) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => MainPage()),
+            );
+          }
+        },
       ),
       body: Column(
         children: [
@@ -86,8 +99,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     style: TextStyle(fontSize: 18, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 10),
-
-                  /// ✅ **Кнопки "Редактировать профиль" + "Выход"**
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -110,8 +121,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ),
                       const SizedBox(width: 10),
-
-                      /// 🔥 **Иконка выхода**
                       IconButton(
                         icon: const Icon(Icons.logout, color: Colors.red, size: 28),
                         tooltip: "Выйти из аккаунта",
@@ -120,20 +129,17 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
                   ),
                   const SizedBox(height: 20),
-
                   _buildStatCard("19 Missionen erfüllt", "2680 pts"),
                   _buildStatCard("254504 Schritte", "1609 pts"),
                 ],
               ),
             ),
           ),
-          _buildBottomNavBar(),
         ],
       ),
     );
   }
 
-  /// ✅ Виджет карточки статистики
   Widget _buildStatCard(String title, String points) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -148,36 +154,6 @@ class _ProfilePageState extends State<ProfilePage> {
           child: Text(points, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         ),
       ),
-    );
-  }
-
-  /// ✅ **Закрепленный `NavigationBar`**
-  Widget _buildBottomNavBar() {
-    return NavigationBar(
-      selectedIndex: _currentIndex,
-      onDestinationSelected: (index) {
-        if (index != _currentIndex) {
-          switch (index) {
-            case 0:
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => MainPage()),
-              );
-              break;
-            case 1:
-            case 2:
-              break;
-            case 3:
-              break;
-          }
-        }
-      },
-      destinations: const [
-        NavigationDestination(icon: Icon(Icons.home), label: 'Главная'),
-        NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Магазин'),
-        NavigationDestination(icon: Icon(Icons.group), label: 'Команда'),
-        NavigationDestination(icon: Icon(Icons.person), label: 'Профиль'),
-      ],
     );
   }
 }

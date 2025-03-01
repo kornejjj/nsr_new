@@ -5,6 +5,7 @@ import 'profile_page.dart';
 import 'team_page.dart';
 import 'team_selection_page.dart';
 import 'all_teams_page.dart';
+import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
 
 class MainPage extends StatefulWidget {
   @override
@@ -50,7 +51,23 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      bottomNavigationBar: _buildBottomNavBar(),
+      bottomNavigationBar: BottomNavBar( // Используем BottomNavBar
+        currentIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+
+          if (index == 2) {
+            _navigateToTeamPage();
+          } else if (index == 3) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => ProfilePage()),
+            );
+          }
+        },
+      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -175,32 +192,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  Widget _buildBottomNavBar() {
-    return NavigationBar(
-      selectedIndex: _currentIndex,
-      onDestinationSelected: (index) {
-        setState(() {
-          _currentIndex = index;
-        });
-
-        if (index == 2) {
-          _navigateToTeamPage();
-        } else if (index == 3) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => ProfilePage()),
-          );
-        }
-      },
-      destinations: const [
-        NavigationDestination(icon: Icon(Icons.home), label: 'Главная'),
-        NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Магазин'),
-        NavigationDestination(icon: Icon(Icons.group), label: 'Команда'),
-        NavigationDestination(icon: Icon(Icons.person), label: 'Профиль'),
-      ],
-    );
-  }
-
   Future<void> _navigateToTeamPage() async {
     String userId = FirebaseAuth.instance.currentUser!.uid;
 
@@ -210,14 +201,12 @@ class _MainPageState extends State<MainPage> {
         .get();
 
     if (teams.docs.isNotEmpty) {
-      // Получаем teamId из первой найденной команды
       String teamId = teams.docs.first.id;
 
-      // Передаем teamId в TeamPage
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => TeamPage(teamId: teamId), // Передаем teamId
+          builder: (context) => TeamPage(teamId: teamId),
         ),
       );
     } else {
