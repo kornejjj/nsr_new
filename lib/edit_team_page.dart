@@ -1,11 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'dart:io';
-import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
-import 'team_selection_page.dart'; // Импортируем TeamSelectionPage
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'bottom_nav_bar.dart';
+import 'team_selection_page.dart';
 
 class EditTeamPage extends StatefulWidget {
   final String teamId;
@@ -20,8 +20,8 @@ class _EditTeamPageState extends State<EditTeamPage> {
   String teamName = "Loading...";
   String teamAvatarUrl = "";
   final TextEditingController _teamNameController = TextEditingController();
-  int _currentIndex = 2; // Текущий индекс для BottomNavBar
-  bool _isLoading = true; // Состояние загрузки
+  bool _isLoading = true;
+  int _currentIndex = 2;
 
   @override
   void initState() {
@@ -29,155 +29,51 @@ class _EditTeamPageState extends State<EditTeamPage> {
     _loadTeamData();
   }
 
-  // 📌 Загружаем данные команды
   Future<void> _loadTeamData() async {
     try {
-      final teamDoc = await FirebaseFirestore.instance
-          .collection('teams')
-          .doc(widget.teamId)
-          .get();
+      final teamDoc = await FirebaseFirestore.instance.collection('teams').doc(widget.teamId).get();
 
       if (teamDoc.exists) {
         setState(() {
           teamName = teamDoc['name'] ?? "Без названия";
           teamAvatarUrl = teamDoc['avatar'] ?? "";
           _teamNameController.text = teamName;
-          _isLoading = false; // Данные загружены
+          _isLoading = false;
         });
       } else {
-        setState(() {
-          _isLoading = false; // Данные не найдены
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Команда не найдена")),
-        );
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Команда не найдена")));
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false; // Ошибка загрузки
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Ошибка загрузки данных: $e")),
-      );
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Ошибка загрузки данных: $e")));
     }
   }
 
-  // 📌 Загружаем новое фото команды
   Future<void> _uploadTeamAvatar() async {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     if (image == null) return;
 
-    setState(() {
-      _isLoading = true; // Начало загрузки
-    });
+    setState(() => _isLoading = true);
 
     try {
       File file = File(image.path);
-      Reference storageRef = FirebaseStorage.instance
-          .ref()
-          .child('teams/${widget.teamId}/avatar.jpg');
+      Reference storageRef = FirebaseStorage.instance.ref().child('teams/${widget.teamId}/avatar.jpg');
       await storageRef.putFile(file);
-
       String downloadUrl = await storageRef.getDownloadURL();
 
-      await FirebaseFirestore.instance
-          .collection('teams')
-          .doc(widget.teamId)
-          .update({'avatar': downloadUrl});
+      await FirebaseFirestore.instance.collection('teams').doc(widget.teamId).update({'avatar': downloadUrl});
 
       setState(() {
         teamAvatarUrl = downloadUrl;
-        _isLoading = false; // Загрузка завершена
+        _isLoading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Фото команды обновлено!")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Фото команды обновлено!")));
     } catch (e) {
-      setState(() {
-        _isLoading = false; // Ошибка загрузки
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Ошибка: $e")),
-      );
-    }
-  }
-
-  // 📌 Обновляем имя команды
-  Future<void> _updateTeamName() async {
-    if (_teamNameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Введите название команды")),
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoading = true; // Начало обновления
-    });
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('teams')
-          .doc(widget.teamId)
-          .update({'name': _teamNameController.text});
-
-      setState(() {
-        teamName = _teamNameController.text;
-        _isLoading = false; // Обновление завершено
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Название команды обновлено!")),
-      );
-    } catch (e) {
-      setState(() {
-        _isLoading = false; // Ошибка обновления
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Ошибка: $e")),
-      );
-    }
-  }
-
-  // 📌 Покинуть команду
-  Future<void> _leaveTeam() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    setState(() {
-      _isLoading = true; // Начало процесса
-    });
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('teams')
-          .doc(widget.teamId)
-          .update({
-        'members': FieldValue.arrayRemove([user.uid]),
-      });
-
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update({'teamId': FieldValue.delete()});
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => TeamSelectionPage()),
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Вы покинули команду!")),
-      );
-    } catch (e) {
-      setState(() {
-        _isLoading = false; // Ошибка
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Ошибка: $e")),
-      );
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Ошибка: $e")));
     }
   }
 
@@ -185,10 +81,10 @@ class _EditTeamPageState extends State<EditTeamPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(teamName), // Отображаем текущее название команды
+        title: Text(teamName),
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
-        automaticallyImplyLeading: false, // Убираем стрелку назад
+        automaticallyImplyLeading: false,
       ),
       bottomNavigationBar: BottomNavBar(
         currentIndex: _currentIndex,
@@ -199,19 +95,32 @@ class _EditTeamPageState extends State<EditTeamPage> {
         },
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator()) // Индикатор загрузки
+          ? const Center(child: CircularProgressIndicator())
           : Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             GestureDetector(
               onTap: _uploadTeamAvatar,
-              child: CircleAvatar(
-                radius: 60,
-                backgroundImage: teamAvatarUrl.isNotEmpty
-                    ? NetworkImage(teamAvatarUrl)
-                    : const AssetImage("assets/team_logo.png") as ImageProvider,
-                child: const Icon(Icons.edit, color: Colors.white),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 60,
+                    backgroundImage: teamAvatarUrl.isNotEmpty
+                        ? NetworkImage(teamAvatarUrl)
+                        : const AssetImage("assets/team_logo.png") as ImageProvider,
+                  ),
+                  const Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.blue,
+                      child: Icon(Icons.edit, color: Colors.white, size: 18),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 20),
@@ -239,5 +148,50 @@ class _EditTeamPageState extends State<EditTeamPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _updateTeamName() async {
+    if (_teamNameController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Введите название команды")));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await FirebaseFirestore.instance.collection('teams').doc(widget.teamId).update({'name': _teamNameController.text});
+
+      setState(() {
+        teamName = _teamNameController.text;
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Название команды обновлено!")));
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Ошибка: $e")));
+    }
+  }
+
+  Future<void> _leaveTeam() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await FirebaseFirestore.instance.collection('teams').doc(widget.teamId).update({
+        'members': FieldValue.arrayRemove([user.uid]),
+      });
+
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({'teamId': FieldValue.delete()});
+
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => TeamSelectionPage()));
+
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Вы покинули команду!")));
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Ошибка: $e")));
+    }
   }
 }
