@@ -1,10 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
+import 'bottom_nav_bar.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -15,8 +15,11 @@ class EditProfilePage extends StatefulWidget {
 
 class _EditProfilePageState extends State<EditProfilePage> {
   String avatarUrl = "";
-  String userName = "Loading...";
-  int _currentIndex = 3; // Текущий индекс для BottomNavBar
+  String firstName = "";
+  String lastName = "";
+  String userEmail = "";
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
   void initState() {
@@ -24,23 +27,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _loadUserData();
   }
 
-  // 📌 Загружаем данные пользователя из Firestore
   Future<void> _loadUserData() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _auth.currentUser;
     if (user == null) return;
 
-    final doc = await FirebaseFirestore.instance.collection("users").doc(user.uid).get();
+    final doc = await _firestore.collection("users").doc(user.uid).get();
     if (doc.exists) {
       setState(() {
         avatarUrl = doc.data()?["avatar"] ?? "";
-        userName = "${doc.data()?["firstName"] ?? ""} ${doc.data()?["lastName"] ?? ""}";
+        firstName = doc.data()?["firstName"] ?? "";
+        lastName = doc.data()?["lastName"] ?? "";
+        userEmail = doc.data()?["email"] ?? "";
       });
     }
   }
 
-  // 📌 Загружаем новый аватар
   Future<void> _uploadAvatar() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _auth.currentUser;
     if (user == null) return;
 
     final picker = ImagePicker();
@@ -54,183 +57,178 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
       String downloadUrl = await storageRef.getDownloadURL();
 
-      await FirebaseFirestore.instance.collection("users").doc(user.uid).update({
-        "avatar": downloadUrl
-      });
+      await _firestore.collection("users").doc(user.uid).update({"avatar": downloadUrl});
 
       setState(() {
         avatarUrl = downloadUrl;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Аватар обновлён!")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Аватар обновлён!")),
+      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Ошибка: $e")));
     }
+  }
+
+  void _showEditNameDialog() {
+    TextEditingController firstNameController = TextEditingController(text: firstName);
+    TextEditingController lastNameController = TextEditingController(text: lastName);
+
+    _showEditDialog(
+      title: "Изменить имя и фамилию",
+      fields: [
+        _buildTextField(firstNameController, "Имя"),
+        _buildTextField(lastNameController, "Фамилия"),
+      ],
+      onSave: () async {
+        final user = _auth.currentUser;
+        if (user == null) return;
+
+        await _firestore.collection("users").doc(user.uid).update({
+          "firstName": firstNameController.text,
+          "lastName": lastNameController.text,
+        });
+
+        _loadUserData();
+      },
+    );
+  }
+
+  void _showEditEmailDialog() {
+    TextEditingController currentEmailController = TextEditingController();
+    TextEditingController newEmailController = TextEditingController();
+    TextEditingController confirmNewEmailController = TextEditingController();
+
+    _showEditDialog(
+      title: "Изменить Email",
+      fields: [
+        _buildTextField(currentEmailController, "Текущий Email"),
+        _buildTextField(newEmailController, "Новый Email"),
+        _buildTextField(confirmNewEmailController, "Повторите новый Email"),
+      ],
+      onSave: () async {
+        final user = _auth.currentUser;
+        if (user == null) return;
+
+        if (newEmailController.text == confirmNewEmailController.text) {
+          await user.updateEmail(newEmailController.text);
+          await _firestore.collection("users").doc(user.uid).update({"email": newEmailController.text});
+          _loadUserData();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Email не совпадает!")));
+        }
+      },
+    );
+  }
+
+  void _showEditPasswordDialog() {
+    TextEditingController currentPasswordController = TextEditingController();
+    TextEditingController newPasswordController = TextEditingController();
+    TextEditingController confirmNewPasswordController = TextEditingController();
+
+    _showEditDialog(
+      title: "Изменить пароль",
+      fields: [
+        _buildTextField(currentPasswordController, "Текущий пароль", obscureText: true),
+        _buildTextField(newPasswordController, "Новый пароль", obscureText: true),
+        _buildTextField(confirmNewPasswordController, "Повторите новый пароль", obscureText: true),
+      ],
+      onSave: () async {
+        final user = _auth.currentUser;
+        if (user == null) return;
+
+        if (newPasswordController.text == confirmNewPasswordController.text) {
+          await user.updatePassword(newPasswordController.text);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Пароли не совпадают!")));
+        }
+      },
+    );
+  }
+
+  void _deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    await _firestore.collection("users").doc(user.uid).delete();
+    await user.delete();
+
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Аккаунт удален!")));
+  }
+
+  void _showEditDialog({
+    required String title,
+    required List<Widget> fields,
+    required VoidCallback onSave,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: fields,
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text("Отмена")),
+            TextButton(onPressed: () { onSave(); Navigator.of(context).pop(); }, child: const Text("Сохранить")),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String label, {bool obscureText = false}) {
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      decoration: InputDecoration(labelText: label),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Profil bearbeiten"),
+        title: const Center(child: Text("Редактирование профиля")),
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
-        automaticallyImplyLeading: false, // Убираем стрелку назад
-      ),
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
+        automaticallyImplyLeading: false,
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         child: Column(
           children: [
-            _buildProfileHeader(),
-            const SizedBox(height: 20),
-            Expanded(
-              child: ListView(
-                children: [
-                  _buildSettingItem(
-                    context,
-                    icon: Icons.account_circle_rounded,
-                    title: "Name ändern",
-                    onTap: () => _navigateTo(context, "name"),
-                  ),
-                  _buildSettingItem(
-                    context,
-                    icon: Icons.mail_rounded,
-                    title: "E-Mail ändern",
-                    onTap: () => _navigateTo(context, "email"),
-                  ),
-                  _buildSettingItem(
-                    context,
-                    icon: Icons.lock_rounded,
-                    title: "Passwort ändern",
-                    onTap: () => _navigateTo(context, "password"),
-                  ),
-                  _buildSettingItem(
-                    context,
-                    icon: Icons.visibility_rounded,
-                    title: "Sichtbarkeit",
-                    onTap: () => _navigateTo(context, "visibility"),
-                  ),
-                  _buildSettingItem(
-                    context,
-                    icon: Icons.notifications_active_rounded,
-                    title: "Benachrichtigungen",
-                    onTap: () => _navigateTo(context, "notifications"),
-                  ),
-                  _buildSettingItem(
-                    context,
-                    icon: Icons.delete_forever_rounded,
-                    title: "Konto löschen",
-                    isDestructive: true,
-                    onTap: () => _showDeleteConfirmation(context),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileHeader() {
-    return Column(
-      children: [
-        GestureDetector(
-          onTap: _uploadAvatar,
-          child: Stack(
-            children: [
-              CircleAvatar(
+            GestureDetector(
+              onTap: _uploadAvatar,
+              child: CircleAvatar(
                 radius: 50,
                 backgroundImage: avatarUrl.isNotEmpty
                     ? NetworkImage(avatarUrl)
                     : const AssetImage("assets/profile.jpg") as ImageProvider,
               ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: CircleAvatar(
-                  radius: 16,
-                  backgroundColor: Colors.blue,
-                  child: const Icon(Icons.edit, color: Colors.white, size: 18),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          userName,
-          style: Theme.of(context).textTheme.headlineSmall!.copyWith(fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSettingItem(
-      BuildContext context, {
-        required IconData icon,
-        required String title,
-        required VoidCallback onTap,
-        bool isDestructive = false,
-      }) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 3,
-      child: ListTile(
-        leading: Icon(icon, size: 28, color: isDestructive ? Colors.red : Theme.of(context).iconTheme.color),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: isDestructive ? Colors.red : Theme.of(context).textTheme.bodyLarge!.color,
-          ),
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 18, color: Colors.grey),
-        onTap: onTap,
-      ),
-    );
-  }
-
-  void _navigateTo(BuildContext context, String page) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Navigating to: $page")),
-    );
-  }
-
-  void _showDeleteConfirmation(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("Konto löschen"),
-          content: const Text("Bist du sicher, dass du dein Konto dauerhaft löschen möchtest?"),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text("Abbrechen"),
             ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Konto gelöscht")),
-                );
-              },
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text("Löschen"),
-            ),
+            const SizedBox(height: 10),
+            Text("$firstName $lastName", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            _buildSettingItem(Icons.account_circle, "Изменить имя и фамилию", _showEditNameDialog),
+            _buildSettingItem(Icons.mail, "Изменить Email", _showEditEmailDialog),
+            _buildSettingItem(Icons.lock, "Изменить пароль", _showEditPasswordDialog),
+            _buildSettingItem(Icons.delete, "Удалить аккаунт", _deleteAccount, isDestructive: true),
           ],
-        );
-      },
+        ),
+      ),
+      bottomNavigationBar: BottomNavBar(currentIndex: 3, onDestinationSelected: (_) {}),
+    );
+  }
+
+  Widget _buildSettingItem(IconData icon, String title, VoidCallback onTap, {bool isDestructive = false}) {
+    return ListTile(
+      leading: Icon(icon, color: isDestructive ? Colors.red : Colors.black),
+      title: Text(title, style: TextStyle(color: isDestructive ? Colors.red : Colors.black)),
+      onTap: onTap,
     );
   }
 }

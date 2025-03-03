@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'main_page.dart';
-import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
+import 'bottom_nav_bar.dart';
 
 class TeamSelectionPage extends StatefulWidget {
   @override
@@ -18,17 +18,14 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
   @override
   void initState() {
     super.initState();
-    _checkIfInTeam(); // 🔥 Проверяем команду перед загрузкой страницы
+    _checkIfInTeam();
   }
 
-  /// ✅ Проверяем, есть ли у пользователя команда
   Future<void> _checkIfInTeam() async {
     String userId = _auth.currentUser!.uid;
-    DocumentSnapshot userDoc =
-    await _firestore.collection('users').doc(userId).get();
+    DocumentSnapshot userDoc = await _firestore.collection('users').doc(userId).get();
 
     if (userDoc.exists && userDoc['teamId'] != null) {
-      // 🔥 Если `teamId` уже есть, отправляем на главную страницу
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => MainPage()),
@@ -36,7 +33,6 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
     }
   }
 
-  /// ✅ Создать новую команду
   Future<void> _createTeam() async {
     String teamName = _teamNameController.text.trim();
     if (teamName.isEmpty) {
@@ -48,10 +44,7 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
     String userId = _auth.currentUser!.uid;
 
     try {
-      QuerySnapshot existingTeams = await _firestore
-          .collection('teams')
-          .where('name', isEqualTo: teamName)
-          .get();
+      QuerySnapshot existingTeams = await _firestore.collection('teams').where('name', isEqualTo: teamName).get();
 
       if (existingTeams.docs.isNotEmpty) {
         _showSnackBar("Эта команда уже существует!");
@@ -59,13 +52,12 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
         return;
       }
 
-      // 🔥 Создаём команду
       DocumentReference teamRef = await _firestore.collection('teams').add({
         'name': teamName,
         'members': [userId],
+        'avatar': 'assets/team_logo.png'
       });
 
-      // 🔥 **Обновляем `teamId` у пользователя**
       await _firestore.collection('users').doc(userId).update({'teamId': teamRef.id});
 
       _showSnackBar("Команда успешно создана!");
@@ -77,7 +69,6 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
     }
   }
 
-  /// ✅ Присоединиться к существующей команде
   Future<void> _joinTeam(String teamId, List members) async {
     String userId = _auth.currentUser!.uid;
 
@@ -92,13 +83,9 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
     }
 
     try {
-      // Добавляем пользователя в массив `members`
       members.add(userId);
 
-      // 🔥 Обновляем команду (добавляем пользователя)
       await _firestore.collection('teams').doc(teamId).update({'members': members});
-
-      // 🔥 **Обновляем `teamId` у пользователя**
       await _firestore.collection('users').doc(userId).update({'teamId': teamId});
 
       _showSnackBar("Вы успешно присоединились!");
@@ -108,7 +95,6 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
     }
   }
 
-  /// 🔄 Переход на `MainPage`
   void _navigateToMain() {
     Navigator.pushReplacement(
       context,
@@ -116,26 +102,19 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
     );
   }
 
-  /// 🔔 Отображение уведомлений
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Выбор команды")),
-      bottomNavigationBar: BottomNavBar( // Используем BottomNavBar
-        currentIndex: 2,
-        onDestinationSelected: (index) {
-          if (index == 0) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => MainPage()),
-            );
-          }
-        },
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Center(child: Text("Выбор команды")),
+        backgroundColor: Colors.yellow.shade600,
+        elevation: 0,
+        automaticallyImplyLeading: false,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -144,26 +123,32 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
             const Text(
               "Создайте свою команду или присоединитесь к существующей",
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 20),
             TextField(
               controller: _teamNameController,
               decoration: InputDecoration(
                 labelText: "Название команды",
-                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
               onPressed: _isLoading ? null : _createTeam,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
               child: _isLoading
                   ? const CircularProgressIndicator()
                   : const Text("Создать команду"),
             ),
             const SizedBox(height: 30),
-            const Text("Или присоединитесь к команде:",
-                style: TextStyle(fontSize: 18)),
+            const Text("Или присоединитесь к команде:", style: TextStyle(fontSize: 18)),
             const SizedBox(height: 10),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
@@ -177,12 +162,30 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
                     itemCount: teams.length,
                     itemBuilder: (context, index) {
                       var team = teams[index];
-                      return ListTile(
-                        title: Text(team['name']),
-                        trailing: ElevatedButton(
-                          onPressed: () => _joinTeam(team.id,
-                              List<String>.from(team['members'])),
-                          child: const Text("Присоединиться"),
+                      var members = List<String>.from(team['members']);
+                      String teamAvatar = team['avatar'] ?? 'assets/team_logo.png';
+
+                      return Card(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 3,
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            radius: 25,
+                            backgroundImage: teamAvatar.startsWith("http")
+                                ? NetworkImage(teamAvatar)
+                                : AssetImage(teamAvatar) as ImageProvider,
+                          ),
+                          title: Text(team['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text("Участников: ${members.length}/15"),
+                          trailing: ElevatedButton(
+                            onPressed: () => _joinTeam(team.id, members),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.amber,
+                              foregroundColor: Colors.black,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text("Присоединиться"),
+                          ),
                         ),
                       );
                     },
@@ -193,6 +196,7 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
           ],
         ),
       ),
+      bottomNavigationBar: BottomNavBar(currentIndex: 2, onDestinationSelected: (_) {}),
     );
   }
 }
