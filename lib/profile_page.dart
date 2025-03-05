@@ -3,10 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'main_page.dart';
 import 'edit_profile_page.dart';
-import 'login_page.dart';
-import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
+import 'bottom_nav_bar.dart';
 
 class ProfilePage extends StatefulWidget {
+  const ProfilePage({Key? key}) : super(key: key); // Добавлен параметр key
+
   @override
   _ProfilePageState createState() => _ProfilePageState();
 }
@@ -16,6 +17,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String userName = "Загрузка...";
   String teamName = "Без команды";
   String avatarUrl = "assets/default_avatar.png";
+  int userPoints = 3663; // Новое поле: Баллы участника
 
   @override
   void initState() {
@@ -31,6 +33,7 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         userName = "${userDoc['firstName']} ${userDoc['lastName']}";
         avatarUrl = userDoc['avatar'] ?? "assets/default_avatar.png";
+        userPoints = userDoc['points'] ?? 3663; // Загружаем баллы из Firestore
       });
 
       if (userDoc['teamId'] != null) {
@@ -44,25 +47,39 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  void _logout() async {
-    await FirebaseAuth.instance.signOut();
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => LoginPage()),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Center(child: Text("Мой профиль")),
+        title: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Center(
+              child: Text(
+                "Мой профиль",
+                style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold),
+              ),
+            ),
+            Positioned(
+              right: 16, // Отступ справа
+              child: IconButton(
+                icon: const Icon(Icons.settings, color: Colors.black, size: 26),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => EditProfilePage()),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
         automaticallyImplyLeading: false,
       ),
-      bottomNavigationBar: BottomNavBar( // Используем BottomNavBar
+      bottomNavigationBar: BottomNavBar(
         currentIndex: _currentIndex,
         onDestinationSelected: (index) {
           setState(() {
@@ -83,54 +100,45 @@ class _ProfilePageState extends State<ProfilePage> {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 50),
                   CircleAvatar(
                     radius: 60,
-                    backgroundImage: avatarUrl.startsWith("http") ? NetworkImage(avatarUrl) : AssetImage(avatarUrl) as ImageProvider,
+                    backgroundImage: avatarUrl.startsWith("http")
+                        ? NetworkImage(avatarUrl)
+                        : AssetImage(avatarUrl) as ImageProvider,
+                    backgroundColor: Colors.transparent,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color.fromRGBO(0, 0, 0, 0.2), // Исправлено withOpacity
+                            blurRadius: 10,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  Text(
+                    userName,
+                    style: const TextStyle(fontSize: 37, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    userName,
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    "🚀 $teamName",
+                    style: const TextStyle(fontSize: 22, color: Colors.black),
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    "🚀 $teamName",
-                    style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => EditProfilePage()),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.yellow[600],
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: const Text(
-                          "Редактировать профиль",
-                          style: TextStyle(fontSize: 16, color: Colors.black),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      IconButton(
-                        icon: const Icon(Icons.logout, color: Colors.red, size: 28),
-                        tooltip: "Выйти из аккаунта",
-                        onPressed: _logout,
-                      ),
-                    ],
+                    "$userPoints баллов",
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
                   ),
                   const SizedBox(height: 20),
                   _buildStatCard("19 Missionen erfüllt", "2680 pts"),
                   _buildStatCard("254504 Schritte", "1609 pts"),
+                  _buildStatCard("5677 Laufen", "109 pts"),
                 ],
               ),
             ),
@@ -142,16 +150,36 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildStatCard(String title, String points) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: ListTile(
-        title: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: Colors.green[300],
-            borderRadius: BorderRadius.circular(5),
+      margin: const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
+      elevation: 5,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: InkWell(
+        onTap: () {
+          // Добавьте действие при нажатии
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: ListTile(
+          title: Text(
+            title,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500), // Увеличен размер
           ),
-          child: Text(points, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue[300]!, Colors.blue[400]!], // Новый цвет
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Text(
+              points,
+              style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold), // Увеличен размер
+            ),
+          ),
         ),
       ),
     );

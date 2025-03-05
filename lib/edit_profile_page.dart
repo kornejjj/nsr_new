@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'bottom_nav_bar.dart';
+import 'login_page.dart'; // Импортируем LoginPage для выхода из аккаунта
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -18,6 +19,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
   String firstName = "";
   String lastName = "";
   String userEmail = "";
+  bool isSportsAppConnected = false; // Новое поле: Подключение спортивного приложения
+  String appLanguage = "Русский"; // Новое поле: Язык приложения
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -38,6 +41,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
         firstName = doc.data()?["firstName"] ?? "";
         lastName = doc.data()?["lastName"] ?? "";
         userEmail = doc.data()?["email"] ?? "";
+        isSportsAppConnected = doc.data()?["isSportsAppConnected"] ?? false;
+        appLanguage = doc.data()?["appLanguage"] ?? "Русский";
       });
     }
   }
@@ -147,14 +152,143 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
+  void _toggleSportsAppConnection() {
+    // Показываем уведомление, что функциональность в разработке
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("🚧 Функциональность в разработке!")),
+    );
+  }
+
+  void _showLanguageSelectionDialog() {
+    final List<String> languages = ["Русский", "English", "Deutsch", "Español"];
+    String selectedLanguage = appLanguage;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Выберите язык"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: languages.map((language) {
+              return RadioListTile(
+                title: Text(language),
+                value: language,
+                groupValue: selectedLanguage,
+                onChanged: (value) {
+                  setState(() {
+                    selectedLanguage = value.toString();
+                  });
+                },
+              );
+            }).toList(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text("Отмена"),
+            ),
+            TextButton(
+              onPressed: () async {
+                final user = _auth.currentUser;
+                if (user == null) return;
+
+                await _firestore.collection("users").doc(user.uid).update({
+                  "appLanguage": selectedLanguage,
+                });
+
+                setState(() {
+                  appLanguage = selectedLanguage;
+                });
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("✅ Язык изменён на $selectedLanguage!")),
+                );
+
+                Navigator.of(context).pop();
+              },
+              child: const Text("Сохранить"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _logout() async {
+    await FirebaseAuth.instance.signOut();
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => LoginPage()),
+    );
+  }
+
   void _deleteAccount() async {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    await _firestore.collection("users").doc(user.uid).delete();
-    await user.delete();
+    // Запрос подтверждения перед удалением аккаунта
+    bool confirmDelete = await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Подтверждение удаления"),
+          content: const Text("Вы действительно хотите удалить аккаунт? Это действие нельзя отменить."),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false); // Отмена
+              },
+              child: const Text("Нет", style: TextStyle(color: Colors.red)),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(true); // Подтверждение
+              },
+              child: const Text("Да", style: TextStyle(color: Colors.green)),
+            ),
+          ],
+        );
+      },
+    );
 
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Аккаунт удален!")));
+    if (confirmDelete != true) return; // Если пользователь не подтвердил удаление
+
+    try {
+      // Удаление данных из Firestore
+      await _firestore.collection("users").doc(user.uid).delete();
+
+      // Удаление аватарки из Firebase Storage
+      try {
+        Reference storageRef = FirebaseStorage.instance.ref().child('users/${user.uid}/avatar.jpg');
+        await storageRef.delete();
+      } catch (e) {
+        print("Ошибка при удалении аватарки: $e");
+      }
+
+      // Удаление пользователя из Firebase Authentication
+      await user.delete();
+
+      // Удаление пользователя из массива members в коллекции teams
+      final teamsQuery = await _firestore.collection("teams").where("members", arrayContains: user.uid).get();
+      for (var teamDoc in teamsQuery.docs) {
+        await _firestore.collection("teams").doc(teamDoc.id).update({
+          "members": FieldValue.arrayRemove([user.uid]),
+        });
+        print("Пользователь удален из команды: ${teamDoc.id}");
+      }
+
+      // Показываем уведомление об успешном удалении
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Аккаунт удален!")));
+
+      // Перенаправляем пользователя на экран входа или главный экран
+      Navigator.of(context).pushReplacementNamed('/login');
+    } catch (e) {
+      print("Ошибка при удалении аккаунта: $e");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Ошибка: $e")));
+    }
   }
 
   void _showEditDialog({
@@ -172,8 +306,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
             children: fields,
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text("Отмена")),
-            TextButton(onPressed: () { onSave(); Navigator.of(context).pop(); }, child: const Text("Сохранить")),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("Отмена", style: TextStyle(color: Colors.red)),
+            ),
+            TextButton(
+              onPressed: () {
+                onSave();
+                Navigator.of(context).pop();
+              },
+              child: const Text("Сохранить", style: TextStyle(color: Colors.green)),
+            ),
           ],
         );
       },
@@ -184,7 +327,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
     return TextField(
       controller: controller,
       obscureText: obscureText,
-      decoration: InputDecoration(labelText: label),
+      decoration: InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        filled: true,
+        fillColor: Colors.grey[200],
+      ),
     );
   }
 
@@ -196,6 +346,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.red, size: 26),
+            onPressed: _logout,
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -216,6 +372,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
             _buildSettingItem(Icons.account_circle, "Изменить имя и фамилию", _showEditNameDialog),
             _buildSettingItem(Icons.mail, "Изменить Email", _showEditEmailDialog),
             _buildSettingItem(Icons.lock, "Изменить пароль", _showEditPasswordDialog),
+            _buildSettingItem(
+              Icons.sports,
+              isSportsAppConnected ? "Отключить спортивное приложение" : "Подключить спортивное приложение",
+              _toggleSportsAppConnection,
+            ),
+            _buildSettingItem(Icons.language, "Язык приложения: $appLanguage", _showLanguageSelectionDialog),
             _buildSettingItem(Icons.delete, "Удалить аккаунт", _deleteAccount, isDestructive: true),
           ],
         ),

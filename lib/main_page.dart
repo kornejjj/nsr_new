@@ -72,6 +72,10 @@ class _MainPageState extends State<MainPage> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
+          image: DecorationImage(
+            image: AssetImage("assets/space_background.png"), // Фоновое изображение
+            fit: BoxFit.cover,
+          ),
         ),
         child: SafeArea(
           child: Column(
@@ -87,7 +91,7 @@ class _MainPageState extends State<MainPage> {
                       style: TextStyle(
                         color: Colors.black,
                         fontWeight: FontWeight.bold,
-                        fontSize: 24,
+                        fontSize: 28, // Увеличенный размер шрифта
                       ),
                     );
                   }
@@ -96,7 +100,7 @@ class _MainPageState extends State<MainPage> {
                     style: const TextStyle(
                       color: Colors.black,
                       fontWeight: FontWeight.bold,
-                      fontSize: 24,
+                      fontSize: 28, // Увеличенный размер шрифта
                     ),
                   );
                 },
@@ -117,13 +121,18 @@ class _MainPageState extends State<MainPage> {
                         MaterialPageRoute(builder: (context) => const AllTeamsPage()),
                       ),
                       borderRadius: BorderRadius.circular(20),
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          gradient: LinearGradient(
+                            colors: [Colors.orange.shade200, Colors.yellow.shade100],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.grey.withOpacity(0.2),
+                              color: Colors.grey.withOpacity(0.3),
                               blurRadius: 10,
                               spreadRadius: 5,
                             ),
@@ -195,7 +204,7 @@ class _MainPageState extends State<MainPage> {
                 3,
                     (index) => const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 4),
-                  child: Icon(Icons.rocket_launch, color: Colors.black45, size: 26),
+                  child: Icon(Icons.rocket_launch, color: Colors.orange, size: 30), // Яркие иконки
                 ),
               ),
             ),
@@ -210,9 +219,25 @@ class _MainPageState extends State<MainPage> {
           Positioned(
             right: 0,
             top: 0,
-            child: IconButton(
-              icon: const Icon(Icons.notifications, color: Colors.black54, size: 26),
-              onPressed: () {},
+            child: Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.notifications, color: Colors.black54, size: 26),
+                  onPressed: () {},
+                ),
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -276,10 +301,22 @@ class _CustomSquareButton extends StatelessWidget {
     return Material(
       borderRadius: BorderRadius.circular(15),
       elevation: 5,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
         decoration: BoxDecoration(
-          color: color,
+          gradient: LinearGradient(
+            colors: [color.withOpacity(0.8), color],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.3),
+              blurRadius: 10,
+              spreadRadius: 2,
+            ),
+          ],
         ),
         child: Center(
           child: Column(

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'main_page.dart';
-import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
-import 'edit_team_page.dart'; // Импортируем EditTeamPage
+import 'bottom_nav_bar.dart';
+import 'edit_team_page.dart';
 
 class TeamPage extends StatefulWidget {
   final String teamId;
@@ -39,6 +39,20 @@ class _TeamPageState extends State<TeamPage> {
         });
 
         await _loadMembers(teamData!['members']);
+
+        // Прослушивание изменений в реальном времени
+        FirebaseFirestore.instance
+            .collection('teams')
+            .doc(widget.teamId)
+            .snapshots()
+            .listen((snapshot) {
+          if (snapshot.exists) {
+            setState(() {
+              teamData = snapshot.data() as Map<String, dynamic>;
+            });
+            _loadMembers(teamData!['members']);
+          }
+        });
       } else {
         setState(() {
           teamData = null;
@@ -72,7 +86,7 @@ class _TeamPageState extends State<TeamPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      bottomNavigationBar: BottomNavBar( // Используем BottomNavBar
+      bottomNavigationBar: BottomNavBar(
         currentIndex: 2,
         onDestinationSelected: (index) {
           if (index == 0) {
@@ -102,7 +116,7 @@ class _TeamPageState extends State<TeamPage> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator()) // 🔄 Показываем индикатор загрузки
+          ? const Center(child: CircularProgressIndicator())
           : teamData == null
           ? const Center(child: Text("Команда не найдена", style: TextStyle(fontSize: 18)))
           : Column(
@@ -134,7 +148,7 @@ class _TeamPageState extends State<TeamPage> {
             backgroundColor: Colors.white,
             child: CircleAvatar(
               radius: 46,
-              backgroundImage: NetworkImage(teamData!['avatar'] ?? 'assets/team_logo.png'), // 🔥 Логотип команды (из БД)
+              backgroundImage: NetworkImage(teamData!['avatar'] ?? 'assets/team_logo.png'),
             ),
           ),
           const SizedBox(height: 10),
@@ -168,7 +182,7 @@ class _TeamPageState extends State<TeamPage> {
             "Участники",
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
-          Text("${members.length}/15", style: const TextStyle(color: Colors.grey)), // 🔥 15 участников максимум
+          Text("${members.length}/15", style: const TextStyle(color: Colors.grey)),
           const SizedBox(height: 10),
           Expanded(
             child: ListView.builder(
