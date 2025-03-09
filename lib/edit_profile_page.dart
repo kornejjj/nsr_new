@@ -218,6 +218,33 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   void _logout() async {
+    // Запрос подтверждения перед выходом из аккаунта
+    bool confirmLogout = await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Подтверждение выхода"),
+          content: const Text("Вы действительно хотите выйти из аккаунта?"),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false); // Отмена
+              },
+              child: const Text("Нет", style: TextStyle(color: Colors.red)),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(true); // Подтверждение
+              },
+              child: const Text("Да", style: TextStyle(color: Colors.green)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmLogout != true) return; // Если пользователь не подтвердил выход
+
     await FirebaseAuth.instance.signOut();
     Navigator.pushReplacement(
       context,
@@ -300,10 +327,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(title),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: fields,
+          title: Text(
+            title,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: fields,
+            ),
           ),
           actions: [
             TextButton(
@@ -324,16 +356,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Widget _buildTextField(TextEditingController controller, String label, {bool obscureText = false}) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      decoration: InputDecoration(
-        labelText: label,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: TextField(
+        controller: controller,
+        obscureText: obscureText,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          filled: true,
+          fillColor: Colors.grey[200],
         ),
-        filled: true,
-        fillColor: Colors.grey[200],
       ),
     );
   }
@@ -341,56 +376,89 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Center(child: Text("Редактирование профиля")),
+        title: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Center(
+              child: Text(
+                "Редактирование профиля",
+                style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
         automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.red, size: 26),
-            onPressed: _logout,
-          ),
-        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        child: Column(
-          children: [
-            GestureDetector(
-              onTap: _uploadAvatar,
-              child: CircleAvatar(
-                radius: 50,
-                backgroundImage: avatarUrl.isNotEmpty
-                    ? NetworkImage(avatarUrl)
-                    : const AssetImage("assets/profile.jpg") as ImageProvider,
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  const SizedBox(height: 30),
+                  GestureDetector(
+                    onTap: _uploadAvatar,
+                    child: CircleAvatar(
+                      radius: 60,
+                      backgroundImage: avatarUrl.isNotEmpty
+                          ? NetworkImage(avatarUrl)
+                          : const AssetImage("assets/default_avatar.png") as ImageProvider,
+                      backgroundColor: Colors.transparent,
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  Text(
+                    "$firstName $lastName",
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildSettingItem(Icons.account_circle, "Изменить имя и фамилию", _showEditNameDialog),
+                  _buildSettingItem(Icons.mail, "Изменить Email", _showEditEmailDialog),
+                  _buildSettingItem(Icons.lock, "Изменить пароль", _showEditPasswordDialog),
+                  _buildSettingItem(
+                    Icons.sports,
+                    isSportsAppConnected ? "Отключить спортивное приложение" : "Подключить спортивное приложение",
+                    _toggleSportsAppConnection,
+                  ),
+                  _buildSettingItem(Icons.language, "Язык приложения: $appLanguage", _showLanguageSelectionDialog),
+                  _buildSettingItem(Icons.logout, "Выйти из аккаунта", _logout, isDestructive: true),
+                  _buildSettingItem(Icons.delete, "Удалить аккаунт", _deleteAccount, isDestructive: true),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            Text("$firstName $lastName", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            _buildSettingItem(Icons.account_circle, "Изменить имя и фамилию", _showEditNameDialog),
-            _buildSettingItem(Icons.mail, "Изменить Email", _showEditEmailDialog),
-            _buildSettingItem(Icons.lock, "Изменить пароль", _showEditPasswordDialog),
-            _buildSettingItem(
-              Icons.sports,
-              isSportsAppConnected ? "Отключить спортивное приложение" : "Подключить спортивное приложение",
-              _toggleSportsAppConnection,
-            ),
-            _buildSettingItem(Icons.language, "Язык приложения: $appLanguage", _showLanguageSelectionDialog),
-            _buildSettingItem(Icons.delete, "Удалить аккаунт", _deleteAccount, isDestructive: true),
-          ],
-        ),
+          ),
+        ],
       ),
       bottomNavigationBar: BottomNavBar(currentIndex: 3, onDestinationSelected: (_) {}),
     );
   }
 
   Widget _buildSettingItem(IconData icon, String title, VoidCallback onTap, {bool isDestructive = false}) {
-    return ListTile(
-      leading: Icon(icon, color: isDestructive ? Colors.red : Colors.black),
-      title: Text(title, style: TextStyle(color: isDestructive ? Colors.red : Colors.black)),
-      onTap: onTap,
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: ListTile(
+          leading: Icon(icon, color: isDestructive ? Colors.red : Colors.black),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: isDestructive ? Colors.red : Colors.black,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

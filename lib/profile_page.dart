@@ -107,18 +107,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         ? NetworkImage(avatarUrl)
                         : AssetImage(avatarUrl) as ImageProvider,
                     backgroundColor: Colors.transparent,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Color.fromRGBO(0, 0, 0, 0.2), // Исправлено withOpacity
-                            blurRadius: 10,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
                   const SizedBox(height: 15),
                   Text(
@@ -169,7 +157,7 @@ class _ProfilePageState extends State<ProfilePage> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.blue[300]!, Colors.blue[400]!], // Новый цвет
+                colors: [Colors.green[300]!, Colors.green[400]!], // Новый цвет
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),

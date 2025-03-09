@@ -161,11 +161,22 @@ class _EditTeamPageState extends State<EditTeamPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text(teamName),
+        title: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Center(
+              child: Text(
+                "Редактирование команды",
+                style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold, color: Colors.black),
+              ),
+            ),
+          ],
+        ),
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
-        automaticallyImplyLeading: false,
+        automaticallyImplyLeading: false, // Убираем стрелку назад
       ),
       bottomNavigationBar: BottomNavBar(currentIndex: 2, onDestinationSelected: (_) {}),
       body: _isLoading
@@ -178,10 +189,14 @@ class _EditTeamPageState extends State<EditTeamPage> {
               onTap: _uploadTeamAvatar,
               child: CircleAvatar(
                 radius: 60,
-                backgroundImage: teamAvatarUrl.isNotEmpty
-                    ? NetworkImage(teamAvatarUrl)
-                    : const AssetImage("assets/team_logo.png") as ImageProvider,
-                child: const Icon(Icons.edit, color: Colors.white),
+                backgroundColor: Colors.white,
+                child: CircleAvatar(
+                  radius: 56,
+                  backgroundImage: teamAvatarUrl.isNotEmpty
+                      ? NetworkImage(teamAvatarUrl)
+                      : const AssetImage("assets/team_logo.png") as ImageProvider,
+                  child: const Icon(Icons.edit, color: Colors.white),
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -205,6 +220,7 @@ class _EditTeamPageState extends State<EditTeamPage> {
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
               child: const Text("Покинуть команду"),
             ),

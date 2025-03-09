@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'main_page.dart';
 import 'team_page.dart'; // Импортируем TeamPage
+import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
 
 class AllTeamsPage extends StatelessWidget {
   const AllTeamsPage({super.key});
@@ -16,9 +17,10 @@ class AllTeamsPage extends StatelessWidget {
         ),
         backgroundColor: Colors.yellow[600],
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
+        centerTitle: true, // Выравниваем текст по центру
+        automaticallyImplyLeading: false, // Убираем стрелку назад
       ),
-      bottomNavigationBar: _buildBottomNavBar(context),
+      bottomNavigationBar: BottomNavBar(currentIndex: 2, onDestinationSelected: (_) {}), // Убираем const
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -50,7 +52,13 @@ class AllTeamsPage extends StatelessWidget {
               );
             }
 
+            // Сортируем команды по количеству баллов (по убыванию)
             final teams = snapshot.data!.docs;
+            teams.sort((a, b) {
+              final aPoints = (a['points'] ?? 0).toInt();
+              final bPoints = (b['points'] ?? 0).toInt();
+              return bPoints.compareTo(aPoints);
+            });
 
             return ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -58,15 +66,15 @@ class AllTeamsPage extends StatelessWidget {
               itemBuilder: (context, index) {
                 final team = teams[index].data() as Map<String, dynamic>;
 
-                // 🛠 Проверяем `members`, чтобы избежать ошибки
-                final membersField = team['members'];
-                final int membersCount = (membersField is List) ? membersField.length : 0;
+                // Место команды в рейтинге (индекс + 1)
+                final teamPlace = index + 1;
 
                 return _TeamCard(
                   name: team['name'] ?? 'Без названия',
                   points: team['points']?.toString() ?? '0',
-                  membersCount: membersCount.toString(),
                   teamId: teams[index].id, // Передаем teamId
+                  avatarUrl: team['avatar'] ?? 'assets/team_logo.png', // Добавляем аватар
+                  teamPlace: teamPlace, // Передаем место команды
                 );
               },
             );
@@ -75,38 +83,22 @@ class AllTeamsPage extends StatelessWidget {
       ),
     );
   }
-
-  /// 📌 **Закреплённая нижняя панель**
-  Widget _buildBottomNavBar(BuildContext context) {
-    return NavigationBar(
-      selectedIndex: 2, // Выбрана вкладка Team
-      onDestinationSelected: (index) {
-        if (index == 0) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => MainPage()));
-        }
-      },
-      destinations: const [
-        NavigationDestination(icon: Icon(Icons.home), label: 'Главная'),
-        NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Магазин'),
-        NavigationDestination(icon: Icon(Icons.group), label: 'Команда'),
-        NavigationDestination(icon: Icon(Icons.person), label: 'Профиль'),
-      ],
-    );
-  }
 }
 
 /// 📌 **Карточка команды**
 class _TeamCard extends StatelessWidget {
   final String name;
   final String points;
-  final String membersCount;
   final String teamId; // Добавляем teamId
+  final String avatarUrl; // Добавляем аватар
+  final int teamPlace; // Место команды в рейтинге
 
   const _TeamCard({
     required this.name,
     required this.points,
-    required this.membersCount,
     required this.teamId, // Принимаем teamId
+    required this.avatarUrl, // Принимаем аватар
+    required this.teamPlace, // Принимаем место команды
   });
 
   @override
@@ -127,20 +119,48 @@ class _TeamCard extends StatelessWidget {
         },
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Text(
-                name,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              // Место команды в рейтинге
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.amber[800],
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    '$teamPlace',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _buildInfoItem(Icons.people, '$membersCount участников'),
-                  const SizedBox(width: 16),
-                  _buildInfoItem(Icons.star, '$points очков'),
-                ],
+              const SizedBox(width: 16),
+              // Аватар команды
+              CircleAvatar(
+                radius: 30,
+                backgroundImage: avatarUrl.startsWith("http")
+                    ? NetworkImage(avatarUrl)
+                    : AssetImage(avatarUrl) as ImageProvider,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildInfoItem(Icons.star, '$points очков'),
+                  ],
+                ),
               ),
             ],
           ),

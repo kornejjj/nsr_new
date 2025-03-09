@@ -86,6 +86,7 @@ class _TeamPageState extends State<TeamPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       bottomNavigationBar: BottomNavBar(
         currentIndex: 2,
         onDestinationSelected: (index) {
@@ -98,22 +99,34 @@ class _TeamPageState extends State<TeamPage> {
         },
       ),
       appBar: AppBar(
-        title: const Text("Команда", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+        title: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Center(
+              child: Text(
+                "Моя команда",
+                style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold, color: Colors.black),
+              ),
+            ),
+            Positioned(
+              right: 16, // Отступ справа
+              child: IconButton(
+                icon: const Icon(Icons.settings, color: Colors.black, size: 26),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditTeamPage(teamId: widget.teamId),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.black),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => EditTeamPage(teamId: widget.teamId),
-                ),
-              );
-            },
-          ),
-        ],
+        automaticallyImplyLeading: false, // Убираем стрелку назад
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -121,51 +134,32 @@ class _TeamPageState extends State<TeamPage> {
           ? const Center(child: Text("Команда не найдена", style: TextStyle(fontSize: 18)))
           : Column(
         children: [
-          _buildTeamHeader(),
           const SizedBox(height: 20),
-          Expanded(child: _buildMemberList()),
-        ],
-      ),
-    );
-  }
-
-  /// 📌 Хедер команды (аватарка, название, очки)
-  Widget _buildTeamHeader() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFD54F), Color(0xFFFFE082)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
           CircleAvatar(
-            radius: 50,
+            radius: 60,
             backgroundColor: Colors.white,
             child: CircleAvatar(
-              radius: 46,
+              radius: 56,
               backgroundImage: NetworkImage(teamData!['avatar'] ?? 'assets/team_logo.png'),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 15),
           Text(
             teamData!['name'] ?? "Без названия",
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 37, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 10),
           Text(
             "Место: ${teamData!['rank'] ?? 'N/A'}",
-            style: const TextStyle(fontSize: 18, color: Colors.black54),
+            style: const TextStyle(fontSize: 22, color: Colors.black),
           ),
           const SizedBox(height: 5),
           Text(
-            "${teamData!['points'] ?? 0} Pkt",
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.deepPurple),
+            "${teamData!['points'] ?? 0} баллов",
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
           ),
+          const SizedBox(height: 20),
+          Expanded(child: _buildMemberList()),
         ],
       ),
     );
@@ -190,6 +184,7 @@ class _TeamPageState extends State<TeamPage> {
               itemBuilder: (context, index) {
                 var member = members[index];
                 return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 5),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                   elevation: 3,
                   child: ListTile(
@@ -200,7 +195,7 @@ class _TeamPageState extends State<TeamPage> {
                       "${member['firstName']} ${member['lastName']}",
                       style: const TextStyle(fontWeight: FontWeight.w500),
                     ),
-                    subtitle: Text("${member['points'] ?? 0} Pkt"),
+                    subtitle: Text("${member['points'] ?? 0} баллов"),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
