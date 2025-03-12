@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'bottom_nav_bar.dart';
-import 'login_page.dart'; // Импортируем LoginPage для выхода из аккаунта
+import 'login_page.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -19,8 +19,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
   String firstName = "";
   String lastName = "";
   String userEmail = "";
-  bool isSportsAppConnected = false; // Новое поле: Подключение спортивного приложения
-  String appLanguage = "Русский"; // Новое поле: Язык приложения
+  int userPoints = 0;
+  bool isSportsAppConnected = false;
+  String appLanguage = "Русский";
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -31,345 +32,356 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _loadUserData() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
+    String userId = _auth.currentUser!.uid;
+    DocumentSnapshot userDoc = await _firestore.collection('users').doc(userId).get();
 
-    final doc = await _firestore.collection("users").doc(user.uid).get();
-    if (doc.exists) {
+    if (userDoc.exists) {
       setState(() {
-        avatarUrl = doc.data()?["avatar"] ?? "";
-        firstName = doc.data()?["firstName"] ?? "";
-        lastName = doc.data()?["lastName"] ?? "";
-        userEmail = doc.data()?["email"] ?? "";
-        isSportsAppConnected = doc.data()?["isSportsAppConnected"] ?? false;
-        appLanguage = doc.data()?["appLanguage"] ?? "Русский";
+        firstName = userDoc['firstName'] ?? "";
+        lastName = userDoc['lastName'] ?? "";
+        userEmail = userDoc['email'] ?? "";
+        avatarUrl = userDoc['avatar'] ?? "assets/default_avatar.png";
+        userPoints = (userDoc['points'] ?? 0).toInt();
+        isSportsAppConnected = userDoc['sportsAppConnected'] ?? false;
+        appLanguage = userDoc['language'] ?? "Русский";
       });
     }
   }
 
-  Future<void> _uploadAvatar() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
+  Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image == null) return;
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
-    try {
-      File file = File(image.path);
-      Reference storageRef = FirebaseStorage.instance.ref().child('users/${user.uid}/avatar.jpg');
-      await storageRef.putFile(file);
-
+    if (pickedFile != null) {
+      File imageFile = File(pickedFile.path);
+      String userId = _auth.currentUser!.uid;
+      Reference storageRef = FirebaseStorage.instance.ref().child('avatars/$userId.jpg');
+      await storageRef.putFile(imageFile);
       String downloadUrl = await storageRef.getDownloadURL();
 
-      await _firestore.collection("users").doc(user.uid).update({"avatar": downloadUrl});
-
+      await _firestore.collection('users').doc(userId).update({'avatar': downloadUrl});
       setState(() {
         avatarUrl = downloadUrl;
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Аватар обновлён!")),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Ошибка: $e")));
     }
   }
 
-  void _showEditNameDialog() {
-    TextEditingController firstNameController = TextEditingController(text: firstName);
-    TextEditingController lastNameController = TextEditingController(text: lastName);
+  Future<void> _updateName() async {
+    String newFirstName = firstName;
+    String newLastName = lastName;
 
-    _showEditDialog(
-      title: "Изменить имя и фамилию",
-      fields: [
-        _buildTextField(firstNameController, "Имя"),
-        _buildTextField(lastNameController, "Фамилия"),
-      ],
-      onSave: () async {
-        final user = _auth.currentUser;
-        if (user == null) return;
-
-        await _firestore.collection("users").doc(user.uid).update({
-          "firstName": firstNameController.text,
-          "lastName": lastNameController.text,
-        });
-
-        _loadUserData();
-      },
-    );
-  }
-
-  void _showEditEmailDialog() {
-    TextEditingController currentEmailController = TextEditingController();
-    TextEditingController newEmailController = TextEditingController();
-    TextEditingController confirmNewEmailController = TextEditingController();
-
-    _showEditDialog(
-      title: "Изменить Email",
-      fields: [
-        _buildTextField(currentEmailController, "Текущий Email"),
-        _buildTextField(newEmailController, "Новый Email"),
-        _buildTextField(confirmNewEmailController, "Повторите новый Email"),
-      ],
-      onSave: () async {
-        final user = _auth.currentUser;
-        if (user == null) return;
-
-        if (newEmailController.text == confirmNewEmailController.text) {
-          await user.updateEmail(newEmailController.text);
-          await _firestore.collection("users").doc(user.uid).update({"email": newEmailController.text});
-          _loadUserData();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Email не совпадает!")));
-        }
-      },
-    );
-  }
-
-  void _showEditPasswordDialog() {
-    TextEditingController currentPasswordController = TextEditingController();
-    TextEditingController newPasswordController = TextEditingController();
-    TextEditingController confirmNewPasswordController = TextEditingController();
-
-    _showEditDialog(
-      title: "Изменить пароль",
-      fields: [
-        _buildTextField(currentPasswordController, "Текущий пароль", obscureText: true),
-        _buildTextField(newPasswordController, "Новый пароль", obscureText: true),
-        _buildTextField(confirmNewPasswordController, "Повторите новый пароль", obscureText: true),
-      ],
-      onSave: () async {
-        final user = _auth.currentUser;
-        if (user == null) return;
-
-        if (newPasswordController.text == confirmNewPasswordController.text) {
-          await user.updatePassword(newPasswordController.text);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Пароли не совпадают!")));
-        }
-      },
-    );
-  }
-
-  void _toggleSportsAppConnection() {
-    // Показываем уведомление, что функциональность в разработке
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("🚧 Функциональность в разработке!")),
-    );
-  }
-
-  void _showLanguageSelectionDialog() {
-    final List<String> languages = ["Русский", "English", "Deutsch", "Español"];
-    String selectedLanguage = appLanguage;
-
-    showDialog(
+    await showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Выберите язык"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: languages.map((language) {
-              return RadioListTile(
-                title: Text(language),
-                value: language,
-                groupValue: selectedLanguage,
-                onChanged: (value) {
-                  setState(() {
-                    selectedLanguage = value.toString();
-                  });
-                },
+      builder: (context) => _buildDialog(
+        title: "Изменить имя",
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: const InputDecoration(labelText: "Имя"),
+              onChanged: (value) => newFirstName = value,
+              controller: TextEditingController(text: firstName),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              decoration: const InputDecoration(labelText: "Фамилия"),
+              onChanged: (value) => newLastName = value,
+              controller: TextEditingController(text: lastName),
+            ),
+          ],
+        ),
+        onCancel: () => Navigator.pop(context),
+        onConfirm: () async {
+          if (newFirstName.isNotEmpty && newLastName.isNotEmpty) {
+            await _firestore.collection('users').doc(_auth.currentUser!.uid).update({
+              'firstName': newFirstName,
+              'lastName': newLastName,
+            });
+            setState(() {
+              firstName = newFirstName;
+              lastName = newLastName;
+            });
+            Navigator.pop(context);
+          }
+        },
+        confirmText: "Сохранить",
+      ),
+    );
+  }
+
+  Future<void> _updateEmail() async {
+    String oldEmail = userEmail;
+    String newEmail = userEmail;
+    String confirmEmail = userEmail;
+    final currentContext = context;
+
+    await showDialog(
+      context: currentContext,
+      builder: (context) => _buildDialog(
+        title: "Изменить email",
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: const InputDecoration(labelText: "Текущий email"),
+              controller: TextEditingController(text: oldEmail),
+              enabled: false,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              decoration: const InputDecoration(labelText: "Новый email"),
+              onChanged: (value) => newEmail = value,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              decoration: const InputDecoration(labelText: "Подтвердите email"),
+              onChanged: (value) => confirmEmail = value,
+            ),
+          ],
+        ),
+        onCancel: () => Navigator.pop(context),
+        onConfirm: () async {
+          if (newEmail.isNotEmpty &&
+              confirmEmail.isNotEmpty &&
+              newEmail == confirmEmail &&
+              RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").hasMatch(newEmail)) {
+            try {
+              await _auth.currentUser!.verifyBeforeUpdateEmail(newEmail);
+              await _firestore.collection('users').doc(_auth.currentUser!.uid).update({'email': newEmail});
+              setState(() {
+                userEmail = newEmail;
+              });
+              Navigator.pop(context);
+              ScaffoldMessenger.of(currentContext).showSnackBar(
+                const SnackBar(content: Text("Проверьте вашу почту для подтверждения нового email")),
               );
-            }).toList(),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text("Отмена"),
-            ),
-            TextButton(
-              onPressed: () async {
-                final user = _auth.currentUser;
-                if (user == null) return;
-
-                await _firestore.collection("users").doc(user.uid).update({
-                  "appLanguage": selectedLanguage,
-                });
-
-                setState(() {
-                  appLanguage = selectedLanguage;
-                });
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("✅ Язык изменён на $selectedLanguage!")),
-                );
-
-                Navigator.of(context).pop();
-              },
-              child: const Text("Сохранить"),
-            ),
-          ],
-        );
-      },
+            } catch (e) {
+              ScaffoldMessenger.of(currentContext).showSnackBar(
+                SnackBar(content: Text("Ошибка: $e")),
+              );
+            }
+          } else {
+            ScaffoldMessenger.of(currentContext).showSnackBar(
+              const SnackBar(content: Text("Email не совпадают или введён некорректно")),
+            );
+          }
+        },
+        confirmText: "Сохранить",
+      ),
     );
   }
 
-  void _logout() async {
-    // Запрос подтверждения перед выходом из аккаунта
-    bool confirmLogout = await showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Подтверждение выхода"),
-          content: const Text("Вы действительно хотите выйти из аккаунта?"),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(false); // Отмена
-              },
-              child: const Text("Нет", style: TextStyle(color: Colors.red)),
+  Future<void> _updatePassword() async {
+    String oldPassword = "";
+    String newPassword = "";
+    String confirmPassword = "";
+    final currentContext = context;
+
+    await showDialog(
+      context: currentContext,
+      builder: (context) => _buildDialog(
+        title: "Изменить пароль",
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: const InputDecoration(labelText: "Текущий пароль"),
+              obscureText: true,
+              onChanged: (value) => oldPassword = value,
             ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(true); // Подтверждение
-              },
-              child: const Text("Да", style: TextStyle(color: Colors.green)),
+            const SizedBox(height: 10),
+            TextField(
+              decoration: const InputDecoration(labelText: "Новый пароль"),
+              obscureText: true,
+              onChanged: (value) => newPassword = value,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              decoration: const InputDecoration(labelText: "Подтвердите пароль"),
+              obscureText: true,
+              onChanged: (value) => confirmPassword = value,
             ),
           ],
-        );
-      },
+        ),
+        onCancel: () => Navigator.pop(context),
+        onConfirm: () async {
+          if (newPassword.isNotEmpty &&
+              confirmPassword.isNotEmpty &&
+              newPassword == confirmPassword &&
+              newPassword.length >= 6) {
+            try {
+              UserCredential credential = await _auth.signInWithEmailAndPassword(
+                email: _auth.currentUser!.email!,
+                password: oldPassword,
+              );
+              await _auth.currentUser!.updatePassword(newPassword);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(currentContext).showSnackBar(
+                const SnackBar(content: Text("Пароль обновлён")),
+              );
+            } catch (e) {
+              ScaffoldMessenger.of(currentContext).showSnackBar(
+                SnackBar(content: Text("Ошибка: $e")),
+              );
+            }
+          } else {
+            ScaffoldMessenger.of(currentContext).showSnackBar(
+              const SnackBar(content: Text("Пароли не совпадают или слишком короткие")),
+            );
+          }
+        },
+        confirmText: "Сохранить",
+      ),
     );
+  }
 
-    if (confirmLogout != true) return; // Если пользователь не подтвердил выход
+  Future<void> _updateLanguage() async {
+    String newLanguage = appLanguage;
 
-    await FirebaseAuth.instance.signOut();
+    await showDialog(
+      context: context,
+      builder: (context) => _buildDialog(
+        title: "Выберите язык",
+        content: DropdownButton<String>(
+          value: newLanguage,
+          items: ["Русский", "English", "Deutsch"].map((String value) {
+            return DropdownMenuItem<String>(
+              value: value,
+              child: Text(value),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              newLanguage = value!;
+            });
+          },
+        ),
+        onCancel: () => Navigator.pop(context),
+        onConfirm: () async {
+          await _firestore.collection('users').doc(_auth.currentUser!.uid).update({'language': newLanguage});
+          setState(() {
+            appLanguage = newLanguage;
+          });
+          Navigator.pop(context);
+        },
+        confirmText: "Сохранить",
+      ),
+    );
+  }
+
+  Future<void> _connectSportsApp() async {
+    await showDialog(
+      context: context,
+      builder: (context) => _buildDialog(
+        title: "Подключить спортивное приложение",
+        content: const Text("Подключиться к Google Fit или Apple Health?"),
+        onCancel: () => Navigator.pop(context),
+        onConfirm: () async {
+          await _firestore.collection('users').doc(_auth.currentUser!.uid).update({'sportsAppConnected': true});
+          setState(() {
+            isSportsAppConnected = true;
+          });
+          Navigator.pop(context);
+        },
+        confirmText: "Подключить",
+      ),
+    );
+  }
+
+  Future<void> _logout() async {
+    await _auth.signOut();
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => LoginPage()),
+      MaterialPageRoute(builder: (context) => const LoginPage()),
     );
   }
 
-  void _deleteAccount() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
+  Future<void> _deleteAccount() async {
+    final currentContext = context;
 
-    // Запрос подтверждения перед удалением аккаунта
-    bool confirmDelete = await showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Подтверждение удаления"),
-          content: const Text("Вы действительно хотите удалить аккаунт? Это действие нельзя отменить."),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(false); // Отмена
-              },
-              child: const Text("Нет", style: TextStyle(color: Colors.red)),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(true); // Подтверждение
-              },
-              child: const Text("Да", style: TextStyle(color: Colors.green)),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmDelete != true) return; // Если пользователь не подтвердил удаление
-
-    try {
-      // Удаление данных из Firestore
-      await _firestore.collection("users").doc(user.uid).delete();
-
-      // Удаление аватарки из Firebase Storage
-      try {
-        Reference storageRef = FirebaseStorage.instance.ref().child('users/${user.uid}/avatar.jpg');
-        await storageRef.delete();
-      } catch (e) {
-        print("Ошибка при удалении аватарки: $e");
-      }
-
-      // Удаление пользователя из Firebase Authentication
-      await user.delete();
-
-      // Удаление пользователя из массива members в коллекции teams
-      final teamsQuery = await _firestore.collection("teams").where("members", arrayContains: user.uid).get();
-      for (var teamDoc in teamsQuery.docs) {
-        await _firestore.collection("teams").doc(teamDoc.id).update({
-          "members": FieldValue.arrayRemove([user.uid]),
-        });
-        print("Пользователь удален из команды: ${teamDoc.id}");
-      }
-
-      // Показываем уведомление об успешном удалении
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Аккаунт удален!")));
-
-      // Перенаправляем пользователя на экран входа или главный экран
-      Navigator.of(context).pushReplacementNamed('/login');
-    } catch (e) {
-      print("Ошибка при удалении аккаунта: $e");
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("❌ Ошибка: $e")));
-    }
-  }
-
-  void _showEditDialog({
-    required String title,
-    required List<Widget> fields,
-    required VoidCallback onSave,
-  }) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(
-            title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: fields,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text("Отмена", style: TextStyle(color: Colors.red)),
-            ),
-            TextButton(
-              onPressed: () {
-                onSave();
-                Navigator.of(context).pop();
-              },
-              child: const Text("Сохранить", style: TextStyle(color: Colors.green)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildTextField(TextEditingController controller, String label, {bool obscureText = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: TextField(
-        controller: controller,
-        obscureText: obscureText,
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          filled: true,
-          fillColor: Colors.grey[200],
-        ),
+    await showDialog(
+      context: currentContext,
+      builder: (context) => _buildDialog(
+        title: "Удалить аккаунт",
+        content: const Text("Вы уверены? Это действие необратимо."),
+        onCancel: () => Navigator.pop(context),
+        onConfirm: () async {
+          String userId = _auth.currentUser!.uid;
+          await _firestore.collection('users').doc(userId).delete();
+          await _auth.currentUser!.delete();
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginPage()),
+          );
+        },
+        confirmText: "Удалить",
+        confirmTextColor: Colors.red,
       ),
+    );
+  }
+
+  Widget _buildDialog({
+    required String title,
+    required Widget content,
+    required VoidCallback onCancel,
+    required VoidCallback onConfirm,
+    required String confirmText,
+    Color? confirmTextColor,
+  }) {
+    return AlertDialog(
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+      ),
+      backgroundColor: Colors.white,
+      content: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.grey[200]!, Colors.white],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: content,
+      ),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 5),
+          child: ElevatedButton(
+            onPressed: onCancel,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            child: const Text("Отмена"),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 5),
+          child: ElevatedButton(
+            onPressed: onConfirm,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            child: Text(
+              confirmText,
+              style: TextStyle(
+                color: confirmTextColor ?? Colors.black,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -378,85 +390,136 @@ class _EditProfilePageState extends State<EditProfilePage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Stack(
-          alignment: Alignment.center,
-          children: [
-            const Center(
-              child: Text(
-                "Редактирование профиля",
-                style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
+        title: const Text(
+          "Редактировать профиль",
+          style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold, color: Colors.black),
         ),
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
         automaticallyImplyLeading: false,
+        centerTitle: true,
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  const SizedBox(height: 30),
-                  GestureDetector(
-                    onTap: _uploadAvatar,
-                    child: CircleAvatar(
-                      radius: 60,
-                      backgroundImage: avatarUrl.isNotEmpty
-                          ? NetworkImage(avatarUrl)
-                          : const AssetImage("assets/default_avatar.png") as ImageProvider,
-                      backgroundColor: Colors.transparent,
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  Text(
-                    "$firstName $lastName",
-                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 20),
-                  _buildSettingItem(Icons.account_circle, "Изменить имя и фамилию", _showEditNameDialog),
-                  _buildSettingItem(Icons.mail, "Изменить Email", _showEditEmailDialog),
-                  _buildSettingItem(Icons.lock, "Изменить пароль", _showEditPasswordDialog),
-                  _buildSettingItem(
-                    Icons.sports,
-                    isSportsAppConnected ? "Отключить спортивное приложение" : "Подключить спортивное приложение",
-                    _toggleSportsAppConnection,
-                  ),
-                  _buildSettingItem(Icons.language, "Язык приложения: $appLanguage", _showLanguageSelectionDialog),
-                  _buildSettingItem(Icons.logout, "Выйти из аккаунта", _logout, isDestructive: true),
-                  _buildSettingItem(Icons.delete, "Удалить аккаунт", _deleteAccount, isDestructive: true),
-                ],
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: 3,
+        onDestinationSelected: (index) {},
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Container(
+              width: 120, // Фиксированная ширина для полного отображения
+              height: 120, // Фиксированная высота для полного отображения
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: avatarUrl.startsWith("http")
+                      ? NetworkImage(avatarUrl)
+                      : const AssetImage("assets/default_avatar.png") as ImageProvider,
+                  fit: BoxFit.cover, // Убедимся, что изображение отображается полностью
+                ),
+                borderRadius: BorderRadius.circular(10), // Лёгкие закругления для стиля
               ),
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavBar(currentIndex: 3, onDestinationSelected: (_) {}),
-    );
-  }
-
-  Widget _buildSettingItem(IconData icon, String title, VoidCallback onTap, {bool isDestructive = false}) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      elevation: 3,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: ListTile(
-          leading: Icon(icon, color: isDestructive ? Colors.red : Colors.black),
-          title: Text(
-            title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              color: isDestructive ? Colors.red : Colors.black,
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: _pickImage,
+              child: const Text(
+                "Изменить аватар",
+                style: TextStyle(color: Colors.blue, fontSize: 16),
+              ),
             ),
-          ),
+            const SizedBox(height: 20),
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              elevation: 5,
+              child: ListTile(
+                title: const Text("Имя", style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text("$firstName $lastName"),
+                trailing: const Icon(Icons.edit, color: Colors.grey),
+                onTap: _updateName,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              elevation: 5,
+              child: ListTile(
+                title: const Text("Email", style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(userEmail),
+                trailing: const Icon(Icons.edit, color: Colors.grey),
+                onTap: _updateEmail,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              elevation: 5,
+              child: ListTile(
+                title: const Text("Пароль", style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text("••••••••"),
+                trailing: const Icon(Icons.edit, color: Colors.grey),
+                onTap: _updatePassword,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              elevation: 5,
+              child: ListTile(
+                title: const Text("Язык приложения", style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(appLanguage),
+                trailing: const Icon(Icons.edit, color: Colors.grey),
+                onTap: _updateLanguage,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              elevation: 5,
+              child: ListTile(
+                title: const Text("Спортивное приложение", style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(isSportsAppConnected ? "Подключено" : "Не подключено"),
+                trailing: const Icon(Icons.link, color: Colors.grey),
+                onTap: _connectSportsApp,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              elevation: 5,
+              child: ListTile(
+                title: const Text("Баллы", style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text("$userPoints баллов"),
+                trailing: const Icon(Icons.star, color: Colors.yellow),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _logout,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text("Выйти", style: TextStyle(fontSize: 16)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _deleteAccount,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  side: const BorderSide(color: Colors.red),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text("Удалить аккаунт", style: TextStyle(fontSize: 16, color: Colors.red)),
+              ),
+            ),
+          ],
         ),
       ),
     );

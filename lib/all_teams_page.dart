@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'main_page.dart';
-import 'team_page.dart'; // Импортируем TeamPage
-import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'team_page.dart';
+import 'bottom_nav_bar.dart';
 
-class AllTeamsPage extends StatelessWidget {
+class AllTeamsPage extends StatefulWidget {
   const AllTeamsPage({super.key});
 
+  @override
+  State<AllTeamsPage> createState() => _AllTeamsPageState();
+}
+
+class _AllTeamsPageState extends State<AllTeamsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -17,10 +22,10 @@ class AllTeamsPage extends StatelessWidget {
         ),
         backgroundColor: Colors.yellow[600],
         elevation: 0,
-        centerTitle: true, // Выравниваем текст по центру
-        automaticallyImplyLeading: false, // Убираем стрелку назад
+        centerTitle: true,
+        automaticallyImplyLeading: false,
       ),
-      bottomNavigationBar: BottomNavBar(currentIndex: 2, onDestinationSelected: (_) {}), // Убираем const
+      bottomNavigationBar: BottomNavBar(currentIndex: 2, onDestinationSelected: (_) {}),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -32,49 +37,34 @@ class AllTeamsPage extends StatelessWidget {
         child: StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance.collection('teams').snapshots(),
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: Colors.black));
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  'Ошибка: ${snapshot.error}',
-                  style: const TextStyle(color: Colors.red, fontSize: 16),
-                ),
-              );
-            }
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const Center(
-                child: Text(
-                  'Команды не найдены',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                ),
-              );
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
             }
 
-            // Сортируем команды по количеству баллов (по убыванию)
-            final teams = snapshot.data!.docs;
-            teams.sort((a, b) {
-              final aPoints = (a['points'] ?? 0).toInt();
-              final bPoints = (b['points'] ?? 0).toInt();
-              return bPoints.compareTo(aPoints);
-            });
+            return FutureBuilder<List<Map<String, dynamic>>>(
+              future: _calculateTeamPoints(snapshot.data!.docs),
+              builder: (context, teamSnapshot) {
+                if (!teamSnapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: teams.length,
-              itemBuilder: (context, index) {
-                final team = teams[index].data() as Map<String, dynamic>;
+                var sortedTeams = teamSnapshot.data!;
+                sortedTeams.sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
 
-                // Место команды в рейтинге (индекс + 1)
-                final teamPlace = index + 1;
-
-                return _TeamCard(
-                  name: team['name'] ?? 'Без названия',
-                  points: team['points']?.toString() ?? '0',
-                  teamId: teams[index].id, // Передаем teamId
-                  avatarUrl: team['avatar'] ?? 'assets/team_logo.png', // Добавляем аватар
-                  teamPlace: teamPlace, // Передаем место команды
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: sortedTeams.length,
+                  itemBuilder: (context, index) {
+                    var team = sortedTeams[index];
+                    int rank = index + 1; // Место определяется после сортировки
+                    return _TeamCard(
+                      teamId: team['id'],
+                      rank: rank,
+                      avatar: team['avatar'] ?? 'assets/team_logo.png',
+                      name: team['name'] ?? 'Без названия',
+                      points: team['points'].toString(),
+                    );
+                  },
                 );
               },
             );
@@ -83,99 +73,106 @@ class AllTeamsPage extends StatelessWidget {
       ),
     );
   }
+
+  Future<List<Map<String, dynamic>>> _calculateTeamPoints(List<QueryDocumentSnapshot> teamDocs) async {
+    List<Map<String, dynamic>> teams = [];
+    for (var teamDoc in teamDocs) {
+      var teamData = {'id': teamDoc.id, ...teamDoc.data() as Map<String, dynamic>};
+      int teamPoints = 0;
+
+      List<dynamic> memberIds = teamData['members'] as List<dynamic>? ?? [];
+      List<Future<int>> pointFutures = [];
+      for (String userId in memberIds.take(15)) {
+        pointFutures.add(
+          FirebaseFirestore.instance.collection('users').doc(userId).get().then((doc) {
+            if (doc.exists) {
+              int points = doc['points'] as int? ?? 0;
+              debugPrint('User $userId points: $points');
+              return points;
+            }
+            return 0;
+          }),
+        );
+      }
+
+      // Ожидаем завершения всех запросов
+      if (pointFutures.isNotEmpty) {
+        var points = await Future.wait(pointFutures);
+        teamPoints = points.reduce((a, b) => a + b);
+      }
+
+      debugPrint('Team ${teamData['name']} points: $teamPoints');
+      teamData['points'] = teamPoints;
+      teams.add(teamData);
+    }
+    return teams;
+  }
 }
 
-/// 📌 **Карточка команды**
 class _TeamCard extends StatelessWidget {
+  final String teamId;
+  final int rank;
+  final String avatar;
   final String name;
   final String points;
-  final String teamId; // Добавляем teamId
-  final String avatarUrl; // Добавляем аватар
-  final int teamPlace; // Место команды в рейтинге
 
   const _TeamCard({
+    required this.teamId,
+    required this.rank,
+    required this.avatar,
     required this.name,
     required this.points,
-    required this.teamId, // Принимаем teamId
-    required this.avatarUrl, // Принимаем аватар
-    required this.teamPlace, // Принимаем место команды
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      margin: const EdgeInsets.symmetric(vertical: 8),
       elevation: 5,
-      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
-          // Переход на страницу команды
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => TeamPage(teamId: teamId), // Передаем teamId
-            ),
+            MaterialPageRoute(builder: (context) => TeamPage(teamId: teamId)),
           );
         },
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              // Место команды в рейтинге
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.amber[800],
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(
-                    '$teamPlace',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
+              Text(
+                rank.toString(),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black54),
               ),
-              const SizedBox(width: 16),
-              // Аватар команды
+              const SizedBox(width: 15),
               CircleAvatar(
                 radius: 30,
-                backgroundImage: avatarUrl.startsWith("http")
-                    ? NetworkImage(avatarUrl)
-                    : AssetImage(avatarUrl) as ImageProvider,
+                backgroundImage: avatar.startsWith("http") ? NetworkImage(avatar) : AssetImage(avatar) as ImageProvider,
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 15),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       name,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 8),
-                    _buildInfoItem(Icons.star, '$points очков'),
+                    const SizedBox(height: 5),
+                    Text(
+                      '$points баллов',
+                      style: const TextStyle(fontSize: 16, color: Colors.grey),
+                    ),
                   ],
                 ),
               ),
+              const Icon(Icons.arrow_forward, color: Colors.black54),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildInfoItem(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: Colors.amber[800]),
-        const SizedBox(width: 4),
-        Text(text, style: const TextStyle(fontSize: 16)),
-      ],
     );
   }
 }

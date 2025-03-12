@@ -5,6 +5,8 @@ import 'main_page.dart';
 import 'bottom_nav_bar.dart';
 
 class TeamSelectionPage extends StatefulWidget {
+  const TeamSelectionPage({Key? key}) : super(key: key); // Добавлен const конструктор
+
   @override
   _TeamSelectionPageState createState() => _TeamSelectionPageState();
 }
@@ -28,7 +30,7 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
     if (userDoc.exists && userDoc['teamId'] != null) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => MainPage()),
+        MaterialPageRoute(builder: (context) => const MainPage()),
       );
     }
   }
@@ -98,7 +100,7 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
   void _navigateToMain() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => MainPage()),
+      MaterialPageRoute(builder: (context) => const MainPage()),
     );
   }
 

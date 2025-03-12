@@ -1,62 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'team_selection_page.dart';
 import 'login_page.dart';
-import 'team_selection_page.dart'; // 🛠 Подключаем страницу выбора команды
 
 class RegisterPage extends StatefulWidget {
+  const RegisterPage({Key? key}) : super(key: key); // Добавлен const конструктор
+
   @override
   _RegisterPageState createState() => _RegisterPageState();
 }
 
 class _RegisterPageState extends State<RegisterPage> {
-  final _formKey = GlobalKey<FormState>();
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
-
-  bool _isPasswordVisible = false;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _isLoading = false;
-  String? _errorMessage;
 
-  /// 🔥 **Функция регистрации пользователя**
   Future<void> _register() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_passwordController.text.trim() != _confirmPasswordController.text.trim()) {
-      setState(() => _errorMessage = "Пароли не совпадают");
+    if (_passwordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Пароли не совпадают")),
+      );
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
-      // ✅ Регистрируем пользователя в Firebase Auth
-      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      // ✅ Сохраняем данные пользователя в Firestore
-      await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
+      await _firestore.collection('users').doc(userCredential.user!.uid).set({
         'firstName': _firstNameController.text.trim(),
         'lastName': _lastNameController.text.trim(),
         'email': _emailController.text.trim(),
-        'uid': userCredential.user!.uid,
         'avatar': 'assets/default_avatar.png',
         'points': 0,
-        'teamId': null, // 🔹 У пользователя пока нет команды
       });
 
-      // 🔥 После регистрации отправляем пользователя на `TeamSelectionPage`
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => TeamSelectionPage()),
+        MaterialPageRoute(builder: (context) => const TeamSelectionPage()),
       );
-    } on FirebaseAuthException catch (e) {
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Ошибка регистрации: $e")),
+      );
+    } finally {
       setState(() {
-        _errorMessage = e.message;
         _isLoading = false;
       });
     }
@@ -65,115 +65,116 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFFD54F), Color(0xFFFFE082), Color(0xFFFFF9C4)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 25),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset('assets/logo.png', height: 100),
-                  const SizedBox(height: 20),
-                  const Text(
-                    "Создайте аккаунт",
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black),
-                  ),
-                  const SizedBox(height: 30),
-                  _buildTextField(_firstNameController, "Имя", false),
-                  const SizedBox(height: 15),
-                  _buildTextField(_lastNameController, "Фамилия", false),
-                  const SizedBox(height: 15),
-                  _buildTextField(_emailController, "E-Mail", false),
-                  const SizedBox(height: 15),
-                  _buildTextField(_passwordController, "Пароль", true),
-                  const SizedBox(height: 15),
-                  _buildTextField(_confirmPasswordController, "Повторите пароль", true),
-                  const SizedBox(height: 10),
-                  if (_errorMessage != null)
-                    Text(
-                      _errorMessage!,
-                      style: const TextStyle(color: Colors.red, fontSize: 14),
-                    ),
-                  const SizedBox(height: 20),
-                  _buildPrimaryButton("Создать аккаунт", _register),
-                  const SizedBox(height: 10),
-                  _buildSecondaryButton("Уже есть аккаунт? Войти", () {
-                    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoginPage()));
-                  }),
-                ],
+      backgroundColor: Colors.grey[50],
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 50),
+              Image.asset('assets/logo.png', height: 100),
+              const SizedBox(height: 30),
+              const Text(
+                "Регистрация",
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
-            ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _firstNameController,
+                decoration: InputDecoration(
+                  labelText: "Имя",
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 15),
+              TextField(
+                controller: _lastNameController,
+                decoration: InputDecoration(
+                  labelText: "Фамилия",
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 15),
+              TextField(
+                controller: _emailController,
+                decoration: InputDecoration(
+                  labelText: "Email",
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 15),
+              TextField(
+                controller: _passwordController,
+                decoration: InputDecoration(
+                  labelText: "Пароль",
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                obscureText: true,
+              ),
+              const SizedBox(height: 15),
+              TextField(
+                controller: _confirmPasswordController,
+                decoration: InputDecoration(
+                  labelText: "Подтвердите пароль",
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                obscureText: true,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _register,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.black)
+                      : const Text("Зарегистрироваться", style: TextStyle(fontSize: 16)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                  );
+                },
+                child: const Text(
+                  "Уже есть аккаунт? Войти",
+                  style: TextStyle(color: Colors.blue, fontSize: 16),
+                ),
+              ),
+            ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildTextField(TextEditingController controller, String label, bool isPassword) {
-    return TextFormField(
-      controller: controller,
-      obscureText: isPassword && !_isPasswordVisible,
-      keyboardType: isPassword ? TextInputType.visiblePassword : TextInputType.text,
-      decoration: InputDecoration(
-        labelText: label,
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        suffixIcon: isPassword
-            ? IconButton(
-          icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off),
-          onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
-        )
-            : null,
-      ),
-      validator: (value) {
-        if (value == null || value.isEmpty) return "Поле не должно быть пустым";
-        if (!isPassword && label == "E-Mail" && !RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").hasMatch(value)) {
-          return "Некорректный email";
-        }
-        if (isPassword && value.length < 6) return "Минимум 6 символов";
-        return null;
-      },
-    );
-  }
-
-  Widget _buildPrimaryButton(String text, VoidCallback onPressed) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.amber,
-          foregroundColor: Colors.black,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        child: _isLoading
-            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-            : Text(text, style: const TextStyle(fontSize: 16)),
-      ),
-    );
-  }
-
-  Widget _buildSecondaryButton(String text, VoidCallback onPressed) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.black,
-          side: const BorderSide(color: Colors.black),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        child: Text(text, style: const TextStyle(fontSize: 16)),
       ),
     );
   }

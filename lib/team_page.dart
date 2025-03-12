@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'main_page.dart';
 import 'bottom_nav_bar.dart';
 import 'edit_team_page.dart';
@@ -18,6 +18,8 @@ class _TeamPageState extends State<TeamPage> {
   Map<String, dynamic>? teamData;
   List<Map<String, dynamic>> members = [];
   bool _isLoading = true;
+  int totalTeamPoints = 0; // Для хранения суммы баллов
+  int teamRank = 0; // Для хранения текущего места команды
 
   @override
   void initState() {
@@ -25,7 +27,6 @@ class _TeamPageState extends State<TeamPage> {
     _loadTeam();
   }
 
-  /// 🔥 Загружаем данные команды по teamId
   Future<void> _loadTeam() async {
     try {
       var teamDoc = await FirebaseFirestore.instance
@@ -39,8 +40,8 @@ class _TeamPageState extends State<TeamPage> {
         });
 
         await _loadMembers(teamData!['members']);
+        await _calculateTeamRank(); // Рассчитываем место команды
 
-        // Прослушивание изменений в реальном времени
         FirebaseFirestore.instance
             .collection('teams')
             .doc(widget.teamId)
@@ -51,6 +52,7 @@ class _TeamPageState extends State<TeamPage> {
               teamData = snapshot.data() as Map<String, dynamic>;
             });
             _loadMembers(teamData!['members']);
+            _calculateTeamRank(); // Пересчитываем место команды при обновлении
           }
         });
       } else {
@@ -59,7 +61,7 @@ class _TeamPageState extends State<TeamPage> {
         });
       }
     } catch (error) {
-      print('Ошибка при загрузке команды: $error');
+      debugPrint('Ошибка при загрузке команды: $error');
     } finally {
       setState(() {
         _isLoading = false;
@@ -67,7 +69,6 @@ class _TeamPageState extends State<TeamPage> {
     }
   }
 
-  /// 🔥 Загружаем участников команды
   Future<void> _loadMembers(List<dynamic> memberIds) async {
     List<Map<String, dynamic>> loadedMembers = [];
 
@@ -78,9 +79,62 @@ class _TeamPageState extends State<TeamPage> {
       }
     }
 
+    // Сортировка участников по баллам (от большего к меньшему)
+    loadedMembers.sort((a, b) {
+      int pointsA = a['points'] as int? ?? 0; // Исправляем ошибку с toInt()
+      int pointsB = b['points'] as int? ?? 0;
+      return pointsB.compareTo(pointsA); // Сортировка по убыванию
+    });
+
+    // Рассчитываем сумму баллов участников
+    int pointsSum = loadedMembers.fold(0, (sum, member) => sum + (member['points'] as int? ?? 0));
+
     setState(() {
       members = loadedMembers;
+      totalTeamPoints = pointsSum; // Обновляем сумму баллов
     });
+  }
+
+  Future<void> _calculateTeamRank() async {
+    try {
+      // Получаем все команды
+      var teamsSnapshot = await FirebaseFirestore.instance.collection('teams').get();
+      List<Map<String, dynamic>> teams = [];
+
+      // Для каждой команды рассчитываем сумму баллов участников
+      for (var teamDoc in teamsSnapshot.docs) {
+        var team = teamDoc.data();
+        List<dynamic> memberIds = team['members'] as List<dynamic>? ?? [];
+
+        int teamPoints = 0;
+        for (String userId in memberIds) {
+          var userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+          if (userDoc.exists) {
+            teamPoints += userDoc['points'] as int? ?? 0;
+          }
+        }
+
+        teams.add({
+          'id': teamDoc.id,
+          'points': teamPoints,
+        });
+      }
+
+      // Сортируем команды по сумме баллов (от большего к меньшему)
+      teams.sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
+
+      // Находим место текущей команды
+      int rank = teams.indexWhere((team) => team['id'] == widget.teamId) + 1;
+
+      setState(() {
+        teamRank = rank; // Обновляем место команды
+      });
+    } catch (error) {
+      debugPrint('Ошибка при расчёте места команды: $error');
+      setState(() {
+        teamRank = 0; // Если ошибка, показываем "N/A"
+      });
+    }
   }
 
   @override
@@ -93,7 +147,7 @@ class _TeamPageState extends State<TeamPage> {
           if (index == 0) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => MainPage()),
+              MaterialPageRoute(builder: (context) => const MainPage()),
             );
           }
         },
@@ -109,7 +163,7 @@ class _TeamPageState extends State<TeamPage> {
               ),
             ),
             Positioned(
-              right: 16, // Отступ справа
+              right: 16,
               child: IconButton(
                 icon: const Icon(Icons.settings, color: Colors.black, size: 26),
                 onPressed: () {
@@ -126,7 +180,7 @@ class _TeamPageState extends State<TeamPage> {
         ),
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
-        automaticallyImplyLeading: false, // Убираем стрелку назад
+        automaticallyImplyLeading: false,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -150,12 +204,12 @@ class _TeamPageState extends State<TeamPage> {
           ),
           const SizedBox(height: 10),
           Text(
-            "Место: ${teamData!['rank'] ?? 'N/A'}",
+            "Место: ${teamRank == 0 ? 'N/A' : teamRank}", // Отображаем место команды
             style: const TextStyle(fontSize: 22, color: Colors.black),
           ),
           const SizedBox(height: 5),
           Text(
-            "${teamData!['points'] ?? 0} баллов",
+            "$totalTeamPoints баллов", // Сумма баллов участников
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
           ),
           const SizedBox(height: 20),
@@ -165,7 +219,6 @@ class _TeamPageState extends State<TeamPage> {
     );
   }
 
-  /// 📌 Список участников
   Widget _buildMemberList() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -183,19 +236,38 @@ class _TeamPageState extends State<TeamPage> {
               itemCount: members.length,
               itemBuilder: (context, index) {
                 var member = members[index];
+                String memberName = "${member['firstName'] ?? ''} ${member['lastName'] ?? ''}".trim();
+                String memberPoints = (member['points'] ?? 0).toString();
+                String? memberAvatar = member['avatar'];
+                bool isDefaultAvatar = memberAvatar == null || !memberAvatar.startsWith("http");
+
                 return Card(
                   margin: const EdgeInsets.symmetric(vertical: 5),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                   elevation: 3,
                   child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundImage: NetworkImage(member['avatar'] ?? 'assets/default_avatar.png'),
+                    leading: Container(
+                      width: 40,
+                      height: 40,
+                      child: Image(
+                        image: isDefaultAvatar
+                            ? const AssetImage("assets/default_avatar.png") as ImageProvider
+                            : NetworkImage(memberAvatar),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          debugPrint("Error loading avatar for $memberName: $error");
+                          return Image.asset(
+                            "assets/default_avatar.png",
+                            fit: BoxFit.cover,
+                          );
+                        },
+                      ),
                     ),
                     title: Text(
-                      "${member['firstName']} ${member['lastName']}",
+                      memberName,
                       style: const TextStyle(fontWeight: FontWeight.w500),
                     ),
-                    subtitle: Text("${member['points'] ?? 0} баллов"),
+                    subtitle: Text("$memberPoints баллов"),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

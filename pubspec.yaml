@@ -36,4 +36,5 @@ flutter:
   assets:
     - assets/logo.png
     - assets/flag.png
+    - assets/default_avatar.png
 
