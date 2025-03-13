@@ -1,26 +1,33 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'bottom_nav_bar.dart';
 import 'team_selection_page.dart';
+import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
+import 'main_page.dart'; // Для перехода на MainPage
+import 'profile_page.dart'; // Для перехода на ProfilePage
+import 'team_page.dart'; // Для перехода на TeamPage
 
 class EditTeamPage extends StatefulWidget {
   final String teamId;
 
-  const EditTeamPage({super.key, required this.teamId});
+  const EditTeamPage({Key? key, required this.teamId}) : super(key: key);
 
   @override
   _EditTeamPageState createState() => _EditTeamPageState();
 }
 
 class _EditTeamPageState extends State<EditTeamPage> {
-  String teamName = "Loading...";
-  String teamAvatarUrl = "";
   final TextEditingController _teamNameController = TextEditingController();
-  bool _isLoading = true;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final ImagePicker _picker = ImagePicker();
+  String? _avatarUrl;
+  bool _isLoading = false;
+  int _currentIndex = 2; // Устанавливаем текущий индекс для EditTeamPage (соответствует TeamPage)
 
   @override
   void initState() {
@@ -30,69 +37,50 @@ class _EditTeamPageState extends State<EditTeamPage> {
 
   Future<void> _loadTeamData() async {
     try {
-      final teamDoc =
-      await FirebaseFirestore.instance.collection('teams').doc(widget.teamId).get();
-
+      DocumentSnapshot teamDoc = await _firestore.collection('teams').doc(widget.teamId).get();
       if (teamDoc.exists) {
         setState(() {
-          teamName = teamDoc['name'] ?? "Без названия";
-          teamAvatarUrl = teamDoc['avatar'] ?? "";
-          _teamNameController.text = teamName;
-          _isLoading = false;
+          _teamNameController.text = teamDoc['name'] ?? '';
+          _avatarUrl = teamDoc['avatar'];
         });
-      } else {
-        _handleTeamNotFound();
       }
     } catch (e) {
-      _handleTeamNotFound();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Ошибка загрузки данных команды: $e")),
+      );
     }
   }
 
-  void _handleTeamNotFound() {
-    setState(() => _isLoading = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Команда не найдена")),
-    );
-  }
+  Future<void> _pickImage() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      setState(() => _isLoading = true);
+      try {
+        String fileName = 'team_avatars/${widget.teamId}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+        Reference storageRef = _storage.ref().child(fileName);
+        await storageRef.putFile(File(image.path));
+        String downloadUrl = await storageRef.getDownloadURL();
 
-  Future<void> _uploadTeamAvatar() async {
-    final picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image == null) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      File file = File(image.path);
-      Reference storageRef =
-      FirebaseStorage.instance.ref().child('teams/${widget.teamId}/avatar.jpg');
-      await storageRef.putFile(file);
-
-      String downloadUrl = await storageRef.getDownloadURL();
-
-      await FirebaseFirestore.instance
-          .collection('teams')
-          .doc(widget.teamId)
-          .update({'avatar': downloadUrl});
-
-      setState(() {
-        teamAvatarUrl = downloadUrl;
-        _isLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Фото команды обновлено!")),
-      );
-    } catch (e) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Ошибка: $e")),
-      );
+        await _firestore.collection('teams').doc(widget.teamId).update({'avatar': downloadUrl});
+        setState(() {
+          _avatarUrl = downloadUrl;
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Аватар успешно обновлён")),
+        );
+      } catch (e) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Ошибка загрузки аватара: $e")),
+        );
+      }
     }
   }
 
   Future<void> _updateTeamName() async {
-    if (_teamNameController.text.isEmpty) {
+    String newName = _teamNameController.text.trim();
+    if (newName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Введите название команды")),
       );
@@ -100,61 +88,50 @@ class _EditTeamPageState extends State<EditTeamPage> {
     }
 
     setState(() => _isLoading = true);
-
     try {
-      await FirebaseFirestore.instance
-          .collection('teams')
-          .doc(widget.teamId)
-          .update({'name': _teamNameController.text});
-
-      setState(() {
-        teamName = _teamNameController.text;
-        _isLoading = false;
-      });
-
+      await _firestore.collection('teams').doc(widget.teamId).update({'name': newName});
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Название команды обновлено!")),
+        const SnackBar(content: Text("Название команды обновлено")),
       );
     } catch (e) {
-      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Ошибка: $e")),
+        SnackBar(content: Text("Ошибка обновления названия: $e")),
       );
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
   Future<void> _leaveTeam() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
+    String userId = _auth.currentUser!.uid;
     setState(() => _isLoading = true);
 
     try {
-      await FirebaseFirestore.instance
-          .collection('teams')
-          .doc(widget.teamId)
-          .update({
-        'members': FieldValue.arrayRemove([user.uid]),
-      });
+      DocumentSnapshot teamDoc = await _firestore.collection('teams').doc(widget.teamId).get();
+      List<dynamic> members = teamDoc['members'] ?? [];
+      members.remove(userId);
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update({'teamId': FieldValue.delete()});
+      if (members.isEmpty) {
+        await _firestore.collection('teams').doc(widget.teamId).delete();
+      } else {
+        await _firestore.collection('teams').doc(widget.teamId).update({'members': members});
+      }
 
+      await _firestore.collection('users').doc(userId).update({'teamId': null});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Вы покинули команду")),
+      );
+
+      // Перенаправляем на страницу выбора команды
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => TeamSelectionPage()),
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Вы покинули команду!")),
+        MaterialPageRoute(builder: (context) => const TeamSelectionPage()),
       );
     } catch (e) {
-      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Ошибка: $e")),
+        SnackBar(content: Text("Ошибка при выходе из команды: $e")),
       );
+      setState(() => _isLoading = false);
     }
   }
 
@@ -163,40 +140,49 @@ class _EditTeamPageState extends State<EditTeamPage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Stack(
-          alignment: Alignment.center,
-          children: [
-            const Center(
-              child: Text(
-                "Редактирование команды",
-                style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold, color: Colors.black),
-              ),
-            ),
-          ],
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
         ),
+        title: const Text("Редактировать команду"),
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
-        automaticallyImplyLeading: false, // Убираем стрелку назад
+        centerTitle: true,
       ),
-      bottomNavigationBar: BottomNavBar(currentIndex: 2, onDestinationSelected: (_) {}),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
+      bottomNavigationBar: BottomNavBar(
+        currentIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() => _currentIndex = index);
+          if (index == 0) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const MainPage()),
+            );
+          } else if (index == 2) {
+            // Переход на TeamPage
+            _navigateToTeamPage();
+          } else if (index == 3) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfilePage()),
+            );
+          }
+        },
+      ),
+      body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             GestureDetector(
-              onTap: _uploadTeamAvatar,
+              onTap: _pickImage,
               child: CircleAvatar(
-                radius: 60,
-                backgroundColor: Colors.white,
-                child: CircleAvatar(
-                  radius: 56,
-                  backgroundImage: teamAvatarUrl.isNotEmpty
-                      ? NetworkImage(teamAvatarUrl)
-                      : const AssetImage("assets/team_logo.png") as ImageProvider,
-                  child: const Icon(Icons.edit, color: Colors.white),
-                ),
+                radius: 50,
+                backgroundImage: _avatarUrl != null && _avatarUrl!.startsWith("http")
+                    ? NetworkImage(_avatarUrl!)
+                    : const AssetImage('assets/team_logo.png') as ImageProvider,
+                child: _isLoading
+                    ? const CircularProgressIndicator()
+                    : const Icon(Icons.camera_alt, size: 30, color: Colors.white),
               ),
             ),
             const SizedBox(height: 20),
@@ -207,20 +193,27 @@ class _EditTeamPageState extends State<EditTeamPage> {
                 filled: true,
                 fillColor: Colors.white,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.save),
-                  onPressed: _updateTeamName,
-                ),
               ),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _leaveTeam,
+              onPressed: _isLoading ? null : _updateTeamName,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: _isLoading
+                  ? const CircularProgressIndicator()
+                  : const Text("Обновить название"),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _isLoading ? null : _leaveTeam,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
               child: const Text("Покинуть команду"),
             ),
@@ -228,5 +221,25 @@ class _EditTeamPageState extends State<EditTeamPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _navigateToTeamPage() async {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+    QuerySnapshot teams = await FirebaseFirestore.instance
+        .collection('teams')
+        .where('members', arrayContains: userId)
+        .get();
+    if (teams.docs.isNotEmpty) {
+      String teamId = teams.docs.first.id;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => TeamPage(teamId: teamId)),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const TeamSelectionPage()),
+      );
+    }
   }
 }

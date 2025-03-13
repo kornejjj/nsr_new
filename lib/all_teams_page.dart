@@ -16,6 +16,10 @@ class _AllTeamsPageState extends State<AllTeamsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: const Text(
           'Все команды',
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
@@ -56,7 +60,7 @@ class _AllTeamsPageState extends State<AllTeamsPage> {
                   itemCount: sortedTeams.length,
                   itemBuilder: (context, index) {
                     var team = sortedTeams[index];
-                    int rank = index + 1; // Место определяется после сортировки
+                    int rank = index + 1;
                     return _TeamCard(
                       teamId: team['id'],
                       rank: rank,
@@ -82,7 +86,7 @@ class _AllTeamsPageState extends State<AllTeamsPage> {
 
       List<dynamic> memberIds = teamData['members'] as List<dynamic>? ?? [];
       List<Future<int>> pointFutures = [];
-      for (String userId in memberIds.take(15)) {
+      for (String userId in memberIds.take(20)) { // Изменено с 15 на 20
         pointFutures.add(
           FirebaseFirestore.instance.collection('users').doc(userId).get().then((doc) {
             if (doc.exists) {
@@ -95,7 +99,6 @@ class _AllTeamsPageState extends State<AllTeamsPage> {
         );
       }
 
-      // Ожидаем завершения всех запросов
       if (pointFutures.isNotEmpty) {
         var points = await Future.wait(pointFutures);
         teamPoints = points.reduce((a, b) => a + b);

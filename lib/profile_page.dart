@@ -16,7 +16,7 @@ class _ProfilePageState extends State<ProfilePage> {
   int _currentIndex = 3;
   String userName = "Загрузка...";
   String teamName = "Без команды";
-  String avatarUrl = "assets/default_avatar.png"; // Установка по умолчанию
+  String avatarUrl = "assets/default_avatar.png";
   int userPoints = 0;
 
   @override
@@ -37,40 +37,43 @@ class _ProfilePageState extends State<ProfilePage> {
       await FirebaseFirestore.instance.collection('users').doc(userId).get();
 
       if (userDoc.exists) {
-        setState(() {
-          userName = "${userDoc['firstName'] ?? ''} ${userDoc['lastName'] ?? ''}".trim();
-          // Проверяем поле avatar: если оно пустое, null или не URL, используем стандартный аватар
-          String? avatar = userDoc['avatar'];
-          avatarUrl = (avatar != null && avatar.isNotEmpty && avatar.startsWith("http"))
-              ? avatar
-              : "assets/default_avatar.png";
-          userPoints = (userDoc['points'] ?? 0).toInt();
-          print("Avatar URL: $avatarUrl"); // Отладка: проверяем, что загружается
-        });
+        if (mounted) {
+          setState(() {
+            userName = "${userDoc['firstName'] ?? ''} ${userDoc['lastName'] ?? ''}".trim();
+            String? avatar = userDoc['avatar'];
+            avatarUrl = (avatar != null && avatar.isNotEmpty && avatar.startsWith("http"))
+                ? avatar
+                : "assets/default_avatar.png";
+            userPoints = (userDoc['points'] ?? 0).toInt();
+            print("Avatar URL: $avatarUrl");
+          });
+        }
 
         if (userDoc['teamId'] != null) {
           DocumentSnapshot teamDoc =
           await FirebaseFirestore.instance.collection('teams').doc(userDoc['teamId']).get();
-          if (teamDoc.exists) {
+          if (teamDoc.exists && mounted) {
             setState(() {
               teamName = teamDoc['name'] ?? "Без команды";
             });
           }
         }
-      } else {
+      } else if (mounted) {
         setState(() {
-          avatarUrl = "assets/default_avatar.png"; // Если пользователя нет, используем стандартный аватар
+          avatarUrl = "assets/default_avatar.png";
           print("User does not exist, using default avatar: $avatarUrl");
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Ошибка загрузки данных: $e")),
-      );
-      setState(() {
-        avatarUrl = "assets/default_avatar.png"; // При ошибке используем стандартный аватар
-        print("Error loading data, using default avatar: $avatarUrl");
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Ошибка загрузки данных: $e")),
+        );
+        setState(() {
+          avatarUrl = "assets/default_avatar.png";
+          print("Error loading data, using default avatar: $avatarUrl");
+        });
+      }
     }
   }
 
@@ -79,6 +82,10 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: const _AppBarTitle(),
         actions: [
           IconButton(
@@ -119,29 +126,38 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Column(
               children: [
                 Container(
-                  width: 120,
-                  height: 120,
-                  child: Image(
-                    image: avatarUrl.startsWith("http")
-                        ? NetworkImage(avatarUrl)
-                        : const AssetImage("assets/default_avatar.png") as ImageProvider,
-                    fit: BoxFit.cover, // Сохраняем пропорции
-                    errorBuilder: (context, error, stackTrace) {
-                      print("Error loading image: $error"); // Отладка: выводим ошибку загрузки
-                      return Container(
-                        color: Colors.grey[300],
-                        child: const Center(
-                          child: Text(
-                            "Ошибка загрузки",
-                            style: TextStyle(color: Colors.red, fontSize: 12),
-                            textAlign: TextAlign.center,
-                          ),
+                  margin: const EdgeInsets.only(top: 20, bottom: 15),
+                  child: CircleAvatar(
+                    radius: 60,
+                    backgroundColor: Colors.white,
+                    child: CircleAvatar(
+                      radius: 56,
+                      backgroundImage: avatarUrl.startsWith("http")
+                          ? NetworkImage(avatarUrl)
+                          : const AssetImage("assets/default_avatar.png") as ImageProvider,
+                      child: ClipOval(
+                        child: Image(
+                          image: avatarUrl.startsWith("http")
+                              ? NetworkImage(avatarUrl)
+                              : const AssetImage("assets/default_avatar.png") as ImageProvider,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            print("Error loading image: $error");
+                            if (mounted) {
+                              setState(() {
+                                avatarUrl = "assets/default_avatar.png";
+                              });
+                            }
+                            return Image.asset(
+                              "assets/default_avatar.png",
+                              fit: BoxFit.cover,
+                            );
+                          },
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 15),
                 _buildUserInfo(),
                 const SizedBox(height: 10),
                 _buildTeamInfo(),
@@ -176,7 +192,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       children: [
         Text(
-          "🚀 $teamName",
+          " $teamName",
           style: const TextStyle(fontSize: 22, color: Colors.black),
         ),
       ],
@@ -201,9 +217,7 @@ class _ProfilePageState extends State<ProfilePage> {
         borderRadius: BorderRadius.circular(10),
       ),
       child: InkWell(
-        onTap: () {
-          // Добавьте действие при нажатии
-        },
+        onTap: () {},
         borderRadius: BorderRadius.circular(10),
         child: ListTile(
           title: Text(

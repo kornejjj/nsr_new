@@ -1,41 +1,85 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'profile_page.dart';
 import 'team_page.dart';
 import 'team_selection_page.dart';
 import 'all_teams_page.dart';
 import 'bottom_nav_bar.dart';
-import 'dart:math' show sin;
 
 class MainPage extends StatefulWidget {
-  const MainPage({Key? key}) : super(key: key); // Добавлен const конструктор
+  const MainPage({Key? key}) : super(key: key);
 
   @override
   _MainPageState createState() => _MainPageState();
 }
 
-class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin {
+class _MainPageState extends State<MainPage> {
   int _currentIndex = 0;
-  late AnimationController _animationController;
+  String? _userName;
+  Map<String, dynamic>? _teamData;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat();
+    _checkTeamAndLoadData();
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
+  Future<void> _checkTeamAndLoadData() async {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+    debugPrint('Starting _checkTeamAndLoadData for user: $userId');
+
+    try {
+      debugPrint('Querying teams for user: $userId');
+      QuerySnapshot teams = await FirebaseFirestore.instance
+          .collection('teams')
+          .where('members', arrayContains: userId)
+          .get();
+
+      debugPrint('Query completed. Docs found: ${teams.docs.length}');
+      if (teams.docs.isEmpty) {
+        debugPrint('User $userId is not in a team. Redirecting to TeamSelectionPage.');
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const TeamSelectionPage()),
+          );
+        }
+        return;
+      }
+
+      debugPrint('Fetching user name for: $userId');
+      _userName = await _fetchUserName();
+      debugPrint('Fetching team data for: $userId');
+      _teamData = await _fetchUserTeamWithRank();
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error in _checkTeamAndLoadData: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Ошибка загрузки данных: $e")),
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const TeamSelectionPage()),
+        );
+      }
+    }
   }
 
   Future<String> _fetchUserName() async {
     String userId = FirebaseAuth.instance.currentUser!.uid;
+    debugPrint('Fetching user name for: $userId');
     DocumentSnapshot userDoc =
     await FirebaseFirestore.instance.collection('users').doc(userId).get();
     return userDoc.exists ? userDoc['firstName'] ?? "User" : "User";
@@ -43,6 +87,7 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
 
   Future<Map<String, dynamic>> _fetchUserTeamWithRank() async {
     String userId = FirebaseAuth.instance.currentUser!.uid;
+    debugPrint('Fetching team with rank for user: $userId');
     try {
       QuerySnapshot teams = await FirebaseFirestore.instance
           .collection('teams')
@@ -50,27 +95,83 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
           .get();
 
       if (teams.docs.isNotEmpty) {
-        var userTeam = teams.docs.first.data() as Map<String, dynamic>;
-        int teamPoints = userTeam['points']?.toInt() ?? 0;
+        var userTeamDoc = teams.docs.first;
+        var userTeam = {'id': userTeamDoc.id, ...userTeamDoc.data() as Map<String, dynamic>};
+        int teamPoints = 0;
 
-        QuerySnapshot allTeams = await FirebaseFirestore.instance
-            .collection('teams')
-            .get();
-        var sortedTeams = allTeams.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
-        sortedTeams.sort((a, b) => (b['points'] ?? 0).compareTo(a['points'] ?? 0));
+        List<dynamic> memberIds = userTeam['members'] as List<dynamic>? ?? [];
+        List<Future<int>> pointFutures = [];
+        for (String memberId in memberIds.take(20)) {
+          pointFutures.add(
+            FirebaseFirestore.instance.collection('users').doc(memberId).get().then((doc) {
+              if (doc.exists) {
+                int points = doc['points'] as int? ?? 0;
+                debugPrint('User $memberId points: $points');
+                return points;
+              }
+              return 0;
+            }),
+          );
+        }
 
-        int rank = sortedTeams.indexWhere((team) => team['name'] == userTeam['name']) + 1;
-        userTeam['rank'] = rank;
-        return userTeam;
+        if (pointFutures.isNotEmpty) {
+          var points = await Future.wait(pointFutures);
+          teamPoints = points.reduce((a, b) => a + b);
+        }
+
+        QuerySnapshot allTeams = await FirebaseFirestore.instance.collection('teams').get();
+        var sortedTeams = [];
+        for (var teamDoc in allTeams.docs) {
+          var teamData = {'id': teamDoc.id, ...teamDoc.data() as Map<String, dynamic>};
+          int teamTotalPoints = 0;
+          List<dynamic> teamMemberIds = teamData['members'] as List<dynamic>? ?? [];
+          List<Future<int>> teamPointFutures = [];
+          for (String memberId in teamMemberIds.take(20)) {
+            teamPointFutures.add(
+              FirebaseFirestore.instance.collection('users').doc(memberId).get().then((doc) {
+                return doc.exists ? (doc['points'] as int? ?? 0) : 0;
+              }),
+            );
+          }
+          if (teamPointFutures.isNotEmpty) {
+            var teamPointsList = await Future.wait(teamPointFutures);
+            teamTotalPoints = teamPointsList.reduce((a, b) => a + b);
+          }
+          teamData['points'] = teamTotalPoints;
+          sortedTeams.add(teamData);
+        }
+
+        sortedTeams.sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
+        int rank = sortedTeams.indexWhere((team) => team['id'] == userTeam['id']) + 1;
+
+        debugPrint('Team ${userTeam['name']} points: $teamPoints, rank: $rank');
+        return {
+          'name': userTeam['name'] ?? 'Без названия',
+          'points': teamPoints,
+          'avatar': userTeam['avatar'],
+          'rank': rank,
+        };
       }
     } catch (e) {
-      print('Ошибка при загрузке команды: $e');
+      debugPrint('Error fetching team with rank: $e');
     }
-    return {'name': 'Выберите команду', 'points': '0', 'avatar': 'assets/flag.png', 'rank': 'N/A'};
+    return {'name': null, 'points': 0, 'avatar': null, 'rank': 'N/A'};
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(color: Colors.teal)),
+      );
+    }
+
+    if (_teamData == null || _teamData!['name'] == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(color: Colors.teal)),
+      );
+    }
+
     return Scaffold(
       bottomNavigationBar: BottomNavBar(
         currentIndex: _currentIndex,
@@ -87,59 +188,33 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
         },
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
             colors: [Color(0xFFFFCA28), Color(0xFFFFE57F), Color(0xFFFFF8E1)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-          ),
-          image: DecorationImage(
-            image: const AssetImage("assets/space_background.png"),
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.2), BlendMode.dstATop),
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
-              _Header(animationController: _animationController),
+              const _Header(),
               const SizedBox(height: 15),
-              FutureBuilder<String>(
-                future: _fetchUserName(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const CircularProgressIndicator(color: Colors.teal);
-                  }
-                  return Text(
-                    "Let's Go ${snapshot.data}!",
-                    style: TextStyle(
-                      color: Colors.black87,
-                      fontWeight: FontWeight.bold,
-                      fontSize: MediaQuery.of(context).size.width * 0.07,
-                      shadows: const [Shadow(blurRadius: 4.0, color: Colors.white70, offset: Offset(2.0, 2.0))],
-                    ),
-                  );
-                },
+              Text(
+                "Let's Go $_userName!",
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.bold,
+                  fontSize: MediaQuery.of(context).size.width * 0.07,
+                  shadows: const [Shadow(blurRadius: 4.0, color: Colors.white70, offset: Offset(2.0, 2.0))],
+                ),
               ),
               const SizedBox(height: 15),
-              FutureBuilder<Map<String, dynamic>>(
-                future: _fetchUserTeamWithRank(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const CircularProgressIndicator(color: Colors.teal);
-                  }
-                  final teamName = snapshot.data?['name'] ?? 'Выберите команду';
-                  final teamPoints = snapshot.data?['points']?.toString() ?? '0';
-                  final teamAvatar = snapshot.data?['avatar'] ?? 'assets/flag.png';
-                  final teamRank = snapshot.data?['rank']?.toString() ?? 'N/A';
-
-                  return _TeamCard(
-                    teamName: teamName,
-                    teamPoints: teamPoints,
-                    teamAvatar: teamAvatar,
-                    teamRank: teamRank,
-                  );
-                },
+              _TeamCard(
+                teamName: _teamData!['name'],
+                teamPoints: _teamData!['points'].toString(),
+                teamAvatar: _teamData!['avatar'],
+                teamRank: _teamData!['rank'].toString(),
               ),
               const SizedBox(height: 15),
               Expanded(child: _ActionButtons()),
@@ -160,7 +235,7 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
       String teamId = teams.docs.first.id;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => TeamPage(teamId: teamId)), // Убрано const
+        MaterialPageRoute(builder: (context) => TeamPage(teamId: teamId)),
       );
     } else {
       Navigator.push(
@@ -172,9 +247,7 @@ class _MainPageState extends State<MainPage> with SingleTickerProviderStateMixin
 }
 
 class _Header extends StatelessWidget {
-  final AnimationController animationController;
-
-  const _Header({required this.animationController});
+  const _Header();
 
   @override
   Widget build(BuildContext context) {
@@ -198,14 +271,10 @@ class _Header extends StatelessWidget {
             ),
           ),
           Center(
-            child: AnimatedBuilder(
-              animation: animationController,
-              builder: (context, child) {
-                return Transform.scale(
-                  scale: 1.0 + (sin(animationController.value * 2 * 3.14) * 0.05),
-                  child: Image.asset('assets/logo.png', height: 80, fit: BoxFit.contain),
-                );
-              },
+            child: Image.asset(
+              'assets/logo.png',
+              height: 80,
+              fit: BoxFit.contain,
             ),
           ),
           Positioned(
@@ -241,7 +310,7 @@ class _Header extends StatelessWidget {
 class _TeamCard extends StatelessWidget {
   final String teamName;
   final String teamPoints;
-  final String teamAvatar;
+  final String? teamAvatar;
   final String teamRank;
 
   const _TeamCard({
@@ -281,10 +350,13 @@ class _TeamCard extends StatelessWidget {
                   children: [
                     CircleAvatar(
                       radius: 35,
-                      backgroundImage: teamAvatar.startsWith("http")
-                          ? NetworkImage(teamAvatar)
-                          : AssetImage(teamAvatar) as ImageProvider,
+                      backgroundImage: teamAvatar != null && teamAvatar!.startsWith("http")
+                          ? NetworkImage(teamAvatar!) as ImageProvider
+                          : const AssetImage('assets/team_logo.png'),
                       backgroundColor: Colors.transparent,
+                      onBackgroundImageError: (exception, stackTrace) {
+                        debugPrint('Failed to load team avatar: $exception');
+                      },
                     ),
                     const SizedBox(width: 20),
                     Column(
@@ -308,7 +380,7 @@ class _TeamCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 5),
                         Text(
-                          "$teamPoints Punkte",
+                          "$teamPoints баллов",
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w500,
@@ -344,22 +416,22 @@ class _ActionButtons extends StatelessWidget {
         children: const [
           _CustomSquareButton(
             icon: Icons.flag,
-            text: 'Missionen',
+            text: 'Миссии',
             color: Colors.deepPurple,
           ),
           _CustomSquareButton(
             icon: Icons.directions_run,
-            text: 'Schritte',
+            text: 'Шаги',
             color: Colors.green,
           ),
           _CustomSquareButton(
             icon: Icons.leaderboard,
-            text: 'Aktivität',
+            text: 'Активность',
             color: Colors.blue,
           ),
           _CustomSquareButton(
             icon: Icons.wb_sunny,
-            text: 'Wetter',
+            text: 'Погода',
             color: Colors.orange,
             isRadial: true,
           ),

@@ -18,8 +18,8 @@ class _TeamPageState extends State<TeamPage> {
   Map<String, dynamic>? teamData;
   List<Map<String, dynamic>> members = [];
   bool _isLoading = true;
-  int totalTeamPoints = 0; // Для хранения суммы баллов
-  int teamRank = 0; // Для хранения текущего места команды
+  int totalTeamPoints = 0;
+  int teamRank = 0;
 
   @override
   void initState() {
@@ -40,7 +40,7 @@ class _TeamPageState extends State<TeamPage> {
         });
 
         await _loadMembers(teamData!['members']);
-        await _calculateTeamRank(); // Рассчитываем место команды
+        await _calculateTeamRank();
 
         FirebaseFirestore.instance
             .collection('teams')
@@ -52,7 +52,7 @@ class _TeamPageState extends State<TeamPage> {
               teamData = snapshot.data() as Map<String, dynamic>;
             });
             _loadMembers(teamData!['members']);
-            _calculateTeamRank(); // Пересчитываем место команды при обновлении
+            _calculateTeamRank();
           }
         });
       } else {
@@ -72,36 +72,32 @@ class _TeamPageState extends State<TeamPage> {
   Future<void> _loadMembers(List<dynamic> memberIds) async {
     List<Map<String, dynamic>> loadedMembers = [];
 
-    for (String userId in memberIds.take(15)) {
+    for (String userId in memberIds.take(20)) {
       var userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
       if (userDoc.exists) {
         loadedMembers.add(userDoc.data() as Map<String, dynamic>);
       }
     }
 
-    // Сортировка участников по баллам (от большего к меньшему)
     loadedMembers.sort((a, b) {
-      int pointsA = a['points'] as int? ?? 0; // Исправляем ошибку с toInt()
+      int pointsA = a['points'] as int? ?? 0;
       int pointsB = b['points'] as int? ?? 0;
-      return pointsB.compareTo(pointsA); // Сортировка по убыванию
+      return pointsB.compareTo(pointsA);
     });
 
-    // Рассчитываем сумму баллов участников
     int pointsSum = loadedMembers.fold(0, (sum, member) => sum + (member['points'] as int? ?? 0));
 
     setState(() {
       members = loadedMembers;
-      totalTeamPoints = pointsSum; // Обновляем сумму баллов
+      totalTeamPoints = pointsSum;
     });
   }
 
   Future<void> _calculateTeamRank() async {
     try {
-      // Получаем все команды
       var teamsSnapshot = await FirebaseFirestore.instance.collection('teams').get();
       List<Map<String, dynamic>> teams = [];
 
-      // Для каждой команды рассчитываем сумму баллов участников
       for (var teamDoc in teamsSnapshot.docs) {
         var team = teamDoc.data();
         List<dynamic> memberIds = team['members'] as List<dynamic>? ?? [];
@@ -120,19 +116,17 @@ class _TeamPageState extends State<TeamPage> {
         });
       }
 
-      // Сортируем команды по сумме баллов (от большего к меньшему)
       teams.sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
 
-      // Находим место текущей команды
       int rank = teams.indexWhere((team) => team['id'] == widget.teamId) + 1;
 
       setState(() {
-        teamRank = rank; // Обновляем место команды
+        teamRank = rank;
       });
     } catch (error) {
       debugPrint('Ошибка при расчёте места команды: $error');
       setState(() {
-        teamRank = 0; // Если ошибка, показываем "N/A"
+        teamRank = 0;
       });
     }
   }
@@ -153,31 +147,29 @@ class _TeamPageState extends State<TeamPage> {
         },
       ),
       appBar: AppBar(
-        title: Stack(
-          alignment: Alignment.center,
-          children: [
-            const Center(
-              child: Text(
-                "Моя команда",
-                style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold, color: Colors.black),
-              ),
-            ),
-            Positioned(
-              right: 16,
-              child: IconButton(
-                icon: const Icon(Icons.settings, color: Colors.black, size: 26),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EditTeamPage(teamId: widget.teamId),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
         ),
+        title: Center(
+          child: Text(
+            "Моя команда",
+            style: const TextStyle(fontSize: 23, fontWeight: FontWeight.bold, color: Colors.black),
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings, color: Colors.black, size: 26),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => EditTeamPage(teamId: widget.teamId),
+                ),
+              );
+            },
+          ),
+        ],
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
         automaticallyImplyLeading: false,
@@ -200,16 +192,16 @@ class _TeamPageState extends State<TeamPage> {
           const SizedBox(height: 15),
           Text(
             teamData!['name'] ?? "Без названия",
-            style: const TextStyle(fontSize: 37, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 31, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
           Text(
-            "Место: ${teamRank == 0 ? 'N/A' : teamRank}", // Отображаем место команды
+            "Место: ${teamRank == 0 ? 'N/A' : teamRank}",
             style: const TextStyle(fontSize: 22, color: Colors.black),
           ),
           const SizedBox(height: 5),
           Text(
-            "$totalTeamPoints баллов", // Сумма баллов участников
+            "$totalTeamPoints баллов",
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
           ),
           const SizedBox(height: 20),
@@ -229,7 +221,7 @@ class _TeamPageState extends State<TeamPage> {
             "Участники",
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
-          Text("${members.length}/15", style: const TextStyle(color: Colors.grey)),
+          Text("${members.length}/20", style: const TextStyle(color: Colors.grey)),
           const SizedBox(height: 10),
           Expanded(
             child: ListView.builder(
@@ -249,18 +241,31 @@ class _TeamPageState extends State<TeamPage> {
                     leading: Container(
                       width: 40,
                       height: 40,
-                      child: Image(
-                        image: isDefaultAvatar
-                            ? const AssetImage("assets/default_avatar.png") as ImageProvider
-                            : NetworkImage(memberAvatar),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          debugPrint("Error loading avatar for $memberName: $error");
-                          return Image.asset(
-                            "assets/default_avatar.png",
-                            fit: BoxFit.cover,
-                          );
-                        },
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            spreadRadius: 1,
+                            blurRadius: 3,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: Image(
+                          image: isDefaultAvatar
+                              ? const AssetImage("assets/default_avatar.png") as ImageProvider
+                              : NetworkImage(memberAvatar),
+                          fit: BoxFit.cover, // Заполняет круг, обрезая по краям
+                          errorBuilder: (context, error, stackTrace) {
+                            debugPrint("Error loading avatar for $memberName: $error");
+                            return Image.asset(
+                              "assets/default_avatar.png",
+                              fit: BoxFit.cover,
+                            );
+                          },
+                        ),
                       ),
                     ),
                     title: Text(

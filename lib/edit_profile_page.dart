@@ -32,19 +32,28 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _loadUserData() async {
-    String userId = _auth.currentUser!.uid;
-    DocumentSnapshot userDoc = await _firestore.collection('users').doc(userId).get();
+    try {
+      String userId = _auth.currentUser!.uid;
+      DocumentSnapshot userDoc = await _firestore.collection('users').doc(userId).get();
 
-    if (userDoc.exists) {
-      setState(() {
-        firstName = userDoc['firstName'] ?? "";
-        lastName = userDoc['lastName'] ?? "";
-        userEmail = userDoc['email'] ?? "";
-        avatarUrl = userDoc['avatar'] ?? "assets/default_avatar.png";
-        userPoints = (userDoc['points'] ?? 0).toInt();
-        isSportsAppConnected = userDoc['sportsAppConnected'] ?? false;
-        appLanguage = userDoc['language'] ?? "Русский";
-      });
+      if (userDoc.exists && mounted) {
+        var data = userDoc.data() as Map<String, dynamic>?;
+        setState(() {
+          firstName = data?['firstName'] ?? "";
+          lastName = data?['lastName'] ?? "";
+          userEmail = data?['email'] ?? "";
+          avatarUrl = data?['avatar'] ?? "assets/default_avatar.png";
+          userPoints = (data?['points'] ?? 0).toInt();
+          isSportsAppConnected = data?['sportsAppConnected'] ?? false;
+          appLanguage = data?['language'] ?? "Русский";
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Ошибка загрузки данных: $e")),
+        );
+      }
     }
   }
 
@@ -59,10 +68,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
       await storageRef.putFile(imageFile);
       String downloadUrl = await storageRef.getDownloadURL();
 
-      await _firestore.collection('users').doc(userId).update({'avatar': downloadUrl});
-      setState(() {
-        avatarUrl = downloadUrl;
-      });
+      if (mounted) {
+        await _firestore.collection('users').doc(userId).update({'avatar': downloadUrl});
+        setState(() {
+          avatarUrl = downloadUrl;
+        });
+      }
     }
   }
 
@@ -97,10 +108,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
               'firstName': newFirstName,
               'lastName': newLastName,
             });
-            setState(() {
-              firstName = newFirstName;
-              lastName = newLastName;
-            });
+            if (mounted) {
+              setState(() {
+                firstName = newFirstName;
+                lastName = newLastName;
+              });
+            }
             Navigator.pop(context);
           }
         },
@@ -148,9 +161,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
             try {
               await _auth.currentUser!.verifyBeforeUpdateEmail(newEmail);
               await _firestore.collection('users').doc(_auth.currentUser!.uid).update({'email': newEmail});
-              setState(() {
-                userEmail = newEmail;
-              });
+              if (mounted) {
+                setState(() {
+                  userEmail = newEmail;
+                });
+              }
               Navigator.pop(context);
               ScaffoldMessenger.of(currentContext).showSnackBar(
                 const SnackBar(content: Text("Проверьте вашу почту для подтверждения нового email")),
@@ -259,9 +274,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
         onCancel: () => Navigator.pop(context),
         onConfirm: () async {
           await _firestore.collection('users').doc(_auth.currentUser!.uid).update({'language': newLanguage});
-          setState(() {
-            appLanguage = newLanguage;
-          });
+          if (mounted) {
+            setState(() {
+              appLanguage = newLanguage;
+            });
+          }
           Navigator.pop(context);
         },
         confirmText: "Сохранить",
@@ -277,11 +294,24 @@ class _EditProfilePageState extends State<EditProfilePage> {
         content: const Text("Подключиться к Google Fit или Apple Health?"),
         onCancel: () => Navigator.pop(context),
         onConfirm: () async {
-          await _firestore.collection('users').doc(_auth.currentUser!.uid).update({'sportsAppConnected': true});
-          setState(() {
-            isSportsAppConnected = true;
-          });
-          Navigator.pop(context);
+          try {
+            await _firestore.collection('users').doc(_auth.currentUser!.uid).set(
+              {'sportsAppConnected': true},
+              SetOptions(merge: true),
+            );
+            if (mounted) {
+              setState(() {
+                isSportsAppConnected = true;
+              });
+            }
+            Navigator.pop(context);
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Ошибка подключения: $e")),
+              );
+            }
+          }
         },
         confirmText: "Подключить",
       ),
@@ -390,6 +420,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: const Text(
           "Редактировать профиль",
           style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold, color: Colors.black),
@@ -408,19 +442,38 @@ class _EditProfilePageState extends State<EditProfilePage> {
         child: Column(
           children: [
             Container(
-              width: 120, // Фиксированная ширина для полного отображения
-              height: 120, // Фиксированная высота для полного отображения
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: avatarUrl.startsWith("http")
+              margin: const EdgeInsets.only(bottom: 20),
+              child: CircleAvatar(
+                radius: 60,
+                backgroundColor: Colors.white,
+                child: CircleAvatar(
+                  radius: 56,
+                  backgroundImage: avatarUrl.startsWith("http")
                       ? NetworkImage(avatarUrl)
                       : const AssetImage("assets/default_avatar.png") as ImageProvider,
-                  fit: BoxFit.cover, // Убедимся, что изображение отображается полностью
+                  child: ClipOval(
+                    child: Image(
+                      image: avatarUrl.startsWith("http")
+                          ? NetworkImage(avatarUrl)
+                          : const AssetImage("assets/default_avatar.png") as ImageProvider,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        print("Error loading image: $error");
+                        if (mounted) {
+                          setState(() {
+                            avatarUrl = "assets/default_avatar.png";
+                          });
+                        }
+                        return Image.asset(
+                          "assets/default_avatar.png",
+                          fit: BoxFit.cover,
+                        );
+                      },
+                    ),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(10), // Лёгкие закругления для стиля
               ),
             ),
-            const SizedBox(height: 10),
             TextButton(
               onPressed: _pickImage,
               child: const Text(
