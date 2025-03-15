@@ -5,14 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'team_selection_page.dart';
-import 'bottom_nav_bar.dart'; // Импортируем BottomNavBar
-import 'main_page.dart'; // Для перехода на MainPage
-import 'profile_page.dart'; // Для перехода на ProfilePage
-import 'team_page.dart'; // Для перехода на TeamPage
+import 'bottom_nav_bar.dart';
 
 class EditTeamPage extends StatefulWidget {
   final String teamId;
-
   const EditTeamPage({Key? key, required this.teamId}) : super(key: key);
 
   @override
@@ -27,12 +23,17 @@ class _EditTeamPageState extends State<EditTeamPage> {
   final ImagePicker _picker = ImagePicker();
   String? _avatarUrl;
   bool _isLoading = false;
-  int _currentIndex = 2; // Устанавливаем текущий индекс для EditTeamPage (соответствует TeamPage)
 
   @override
   void initState() {
     super.initState();
     _loadTeamData();
+  }
+
+  @override
+  void dispose() {
+    _teamNameController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadTeamData() async {
@@ -60,7 +61,6 @@ class _EditTeamPageState extends State<EditTeamPage> {
         Reference storageRef = _storage.ref().child(fileName);
         await storageRef.putFile(File(image.path));
         String downloadUrl = await storageRef.getDownloadURL();
-
         await _firestore.collection('teams').doc(widget.teamId).update({'avatar': downloadUrl});
         setState(() {
           _avatarUrl = downloadUrl;
@@ -86,7 +86,6 @@ class _EditTeamPageState extends State<EditTeamPage> {
       );
       return;
     }
-
     setState(() => _isLoading = true);
     try {
       await _firestore.collection('teams').doc(widget.teamId).update({'name': newName});
@@ -98,31 +97,31 @@ class _EditTeamPageState extends State<EditTeamPage> {
         SnackBar(content: Text("Ошибка обновления названия: $e")),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _leaveTeam() async {
     String userId = _auth.currentUser!.uid;
     setState(() => _isLoading = true);
-
     try {
-      DocumentSnapshot teamDoc = await _firestore.collection('teams').doc(widget.teamId).get();
-      List<dynamic> members = teamDoc['members'] ?? [];
-      members.remove(userId);
-
-      if (members.isEmpty) {
-        await _firestore.collection('teams').doc(widget.teamId).delete();
-      } else {
-        await _firestore.collection('teams').doc(widget.teamId).update({'members': members});
-      }
-
-      await _firestore.collection('users').doc(userId).update({'teamId': null});
+      await _firestore.runTransaction((transaction) async {
+        DocumentReference teamRef = _firestore.collection('teams').doc(widget.teamId);
+        DocumentReference userRef = _firestore.collection('users').doc(userId);
+        DocumentSnapshot teamSnap = await transaction.get(teamRef);
+        if (!teamSnap.exists) return;
+        List<dynamic> members = (teamSnap.data() as Map<String, dynamic>)['members'] ?? [];
+        members.remove(userId);
+        if (members.isEmpty) {
+          transaction.delete(teamRef);
+        } else {
+          transaction.update(teamRef, {'members': members});
+        }
+        transaction.update(userRef, {'teamId': null});
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Вы покинули команду")),
       );
-
-      // Перенаправляем на страницу выбора команды
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const TeamSelectionPage()),
@@ -131,7 +130,7 @@ class _EditTeamPageState extends State<EditTeamPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Ошибка при выходе из команды: $e")),
       );
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -140,35 +139,13 @@ class _EditTeamPageState extends State<EditTeamPage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black), onPressed: () => Navigator.pop(context)),
         title: const Text("Редактировать команду"),
         backgroundColor: Colors.yellow.shade600,
         elevation: 0,
         centerTitle: true,
       ),
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() => _currentIndex = index);
-          if (index == 0) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const MainPage()),
-            );
-          } else if (index == 2) {
-            // Переход на TeamPage
-            _navigateToTeamPage();
-          } else if (index == 3) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const ProfilePage()),
-            );
-          }
-        },
-      ),
+      bottomNavigationBar: BottomNavBar(currentIndex: 2, onDestinationSelected: (_) {}),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -221,25 +198,5 @@ class _EditTeamPageState extends State<EditTeamPage> {
         ),
       ),
     );
-  }
-
-  Future<void> _navigateToTeamPage() async {
-    String userId = FirebaseAuth.instance.currentUser!.uid;
-    QuerySnapshot teams = await FirebaseFirestore.instance
-        .collection('teams')
-        .where('members', arrayContains: userId)
-        .get();
-    if (teams.docs.isNotEmpty) {
-      String teamId = teams.docs.first.id;
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => TeamPage(teamId: teamId)),
-      );
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const TeamSelectionPage()),
-      );
-    }
   }
 }

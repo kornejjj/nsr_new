@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'team_page.dart';
 import 'bottom_nav_bar.dart';
 
 class AllTeamsPage extends StatefulWidget {
-  const AllTeamsPage({super.key});
+  const AllTeamsPage({Key? key}) : super(key: key);
 
   @override
-  State<AllTeamsPage> createState() => _AllTeamsPageState();
+  _AllTeamsPageState createState() => _AllTeamsPageState();
 }
 
 class _AllTeamsPageState extends State<AllTeamsPage> {
@@ -16,14 +15,8 @@ class _AllTeamsPageState extends State<AllTeamsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Все команды',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black), onPressed: () => Navigator.pop(context)),
+        title: const Text('Все команды', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.yellow[600],
         elevation: 0,
         centerTitle: true,
@@ -44,17 +37,14 @@ class _AllTeamsPageState extends State<AllTeamsPage> {
             if (!snapshot.hasData) {
               return const Center(child: CircularProgressIndicator());
             }
-
             return FutureBuilder<List<Map<String, dynamic>>>(
               future: _calculateTeamPoints(snapshot.data!.docs),
               builder: (context, teamSnapshot) {
                 if (!teamSnapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
-
                 var sortedTeams = teamSnapshot.data!;
                 sortedTeams.sort((a, b) => (b['points'] as int).compareTo(a['points'] as int));
-
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: sortedTeams.length,
@@ -83,28 +73,24 @@ class _AllTeamsPageState extends State<AllTeamsPage> {
     for (var teamDoc in teamDocs) {
       var teamData = {'id': teamDoc.id, ...teamDoc.data() as Map<String, dynamic>};
       int teamPoints = 0;
-
       List<dynamic> memberIds = teamData['members'] as List<dynamic>? ?? [];
       List<Future<int>> pointFutures = [];
-      for (String userId in memberIds.take(20)) { // Изменено с 15 на 20
+      for (String userId in memberIds.take(20)) {
         pointFutures.add(
-          FirebaseFirestore.instance.collection('users').doc(userId).get().then((doc) {
-            if (doc.exists) {
-              int points = doc['points'] as int? ?? 0;
-              debugPrint('User $userId points: $points');
-              return points;
-            }
-            return 0;
-          }),
+            FirebaseFirestore.instance.collection('users').doc(userId).get().then((doc) {
+              if (doc.exists) {
+                return doc['points'] as int? ?? 0;
+              }
+              return 0;
+            })
         );
       }
-
       if (pointFutures.isNotEmpty) {
-        var points = await Future.wait(pointFutures);
-        teamPoints = points.reduce((a, b) => a + b);
+        var pointsList = await Future.wait(pointFutures);
+        if (pointsList.isNotEmpty) {
+          teamPoints = pointsList.reduce((a, b) => a + b);
+        }
       }
-
-      debugPrint('Team ${teamData['name']} points: $teamPoints');
       teamData['points'] = teamPoints;
       teams.add(teamData);
     }
@@ -135,20 +121,14 @@ class _TeamCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => TeamPage(teamId: teamId)),
-          );
+          Navigator.push(context, MaterialPageRoute(builder: (context) => TeamPage(teamId: teamId)));
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Text(
-                rank.toString(),
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black54),
-              ),
+              Text(rank.toString(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black54)),
               const SizedBox(width: 15),
               CircleAvatar(
                 radius: 30,
@@ -159,15 +139,9 @@ class _TeamCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      name,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
+                    Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 5),
-                    Text(
-                      '$points баллов',
-                      style: const TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
+                    Text('$points баллов', style: const TextStyle(fontSize: 16, color: Colors.grey)),
                   ],
                 ),
               ),

@@ -8,7 +8,7 @@ import 'bottom_nav_bar.dart';
 import 'login_page.dart';
 
 class EditProfilePage extends StatefulWidget {
-  const EditProfilePage({super.key});
+  const EditProfilePage({Key? key}) : super(key: key);
 
   @override
   _EditProfilePageState createState() => _EditProfilePageState();
@@ -35,17 +35,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
     try {
       String userId = _auth.currentUser!.uid;
       DocumentSnapshot userDoc = await _firestore.collection('users').doc(userId).get();
-
       if (userDoc.exists && mounted) {
-        var data = userDoc.data() as Map<String, dynamic>?;
+        var data = userDoc.data() as Map<String, dynamic>;
         setState(() {
-          firstName = data?['firstName'] ?? "";
-          lastName = data?['lastName'] ?? "";
-          userEmail = data?['email'] ?? "";
-          avatarUrl = data?['avatar'] ?? "assets/default_avatar.png";
-          userPoints = (data?['points'] ?? 0).toInt();
-          isSportsAppConnected = data?['sportsAppConnected'] ?? false;
-          appLanguage = data?['language'] ?? "Русский";
+          firstName = data['firstName'] ?? "";
+          lastName = data['lastName'] ?? "";
+          userEmail = data['email'] ?? "";
+          avatarUrl = data['avatar'] ?? "assets/default_avatar.png";
+          userPoints = (data['points'] ?? 0) is int ? data['points'] : (data['points'] ?? 0).toInt();
+          isSportsAppConnected = data['sportsAppConnected'] ?? false;
+          appLanguage = data['language'] ?? "Русский";
         });
       }
     } catch (e) {
@@ -60,19 +59,29 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
     if (pickedFile != null) {
-      File imageFile = File(pickedFile.path);
-      String userId = _auth.currentUser!.uid;
-      Reference storageRef = FirebaseStorage.instance.ref().child('avatars/$userId.jpg');
-      await storageRef.putFile(imageFile);
-      String downloadUrl = await storageRef.getDownloadURL();
-
-      if (mounted) {
-        await _firestore.collection('users').doc(userId).update({'avatar': downloadUrl});
-        setState(() {
-          avatarUrl = downloadUrl;
-        });
+      setState(() => null); // Обновляем состояние, чтобы показать индикатор загрузки
+      try {
+        File imageFile = File(pickedFile.path);
+        String userId = _auth.currentUser!.uid;
+        Reference storageRef = FirebaseStorage.instance.ref().child('avatars/$userId.jpg');
+        await storageRef.putFile(imageFile);
+        String downloadUrl = await storageRef.getDownloadURL();
+        if (mounted) {
+          await _firestore.collection('users').doc(userId).update({'avatar': downloadUrl});
+          setState(() {
+            avatarUrl = downloadUrl;
+          });
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Аватар успешно обновлён")),
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Ошибка загрузки аватара: $e")),
+          );
+        }
       }
     }
   }
@@ -80,7 +89,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Future<void> _updateName() async {
     String newFirstName = firstName;
     String newLastName = lastName;
-
     await showDialog(
       context: context,
       builder: (context) => _buildDialog(
@@ -127,7 +135,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     String newEmail = userEmail;
     String confirmEmail = userEmail;
     final currentContext = context;
-
     await showDialog(
       context: currentContext,
       builder: (context) => _buildDialog(
@@ -191,7 +198,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     String newPassword = "";
     String confirmPassword = "";
     final currentContext = context;
-
     await showDialog(
       context: currentContext,
       builder: (context) => _buildDialog(
@@ -225,7 +231,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               newPassword == confirmPassword &&
               newPassword.length >= 6) {
             try {
-              UserCredential credential = await _auth.signInWithEmailAndPassword(
+              await _auth.signInWithEmailAndPassword(
                 email: _auth.currentUser!.email!,
                 password: oldPassword,
               );
@@ -252,23 +258,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Future<void> _updateLanguage() async {
     String newLanguage = appLanguage;
-
     await showDialog(
       context: context,
       builder: (context) => _buildDialog(
         title: "Выберите язык",
-        content: DropdownButton<String>(
-          value: newLanguage,
-          items: ["Русский", "English", "Deutsch"].map((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(value),
+        content: StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return DropdownButton<String>(
+              value: newLanguage,
+              items: ["Русский", "English", "Deutsch"].map((value) {
+                return DropdownMenuItem(value: value, child: Text(value));
+              }).toList(),
+              onChanged: (value) {
+                setStateDialog(() {
+                  newLanguage = value!;
+                });
+              },
             );
-          }).toList(),
-          onChanged: (value) {
-            setState(() {
-              newLanguage = value!;
-            });
           },
         ),
         onCancel: () => Navigator.pop(context),
@@ -328,7 +334,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Future<void> _deleteAccount() async {
     final currentContext = context;
-
     await showDialog(
       context: currentContext,
       builder: (context) => _buildDialog(
@@ -336,13 +341,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
         content: const Text("Вы уверены? Это действие необратимо."),
         onCancel: () => Navigator.pop(context),
         onConfirm: () async {
-          String userId = _auth.currentUser!.uid;
-          await _firestore.collection('users').doc(userId).delete();
-          await _auth.currentUser!.delete();
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const LoginPage()),
-          );
+          try {
+            String userId = _auth.currentUser!.uid;
+            await _firestore.collection('users').doc(userId).delete();
+            await _auth.currentUser!.delete();
+            Navigator.pop(context);
+            Navigator.pushReplacement(
+              currentContext,
+              MaterialPageRoute(builder: (context) => const LoginPage()),
+            );
+          } catch (e) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(currentContext).showSnackBar(
+              SnackBar(content: Text("Ошибка удаления аккаунта: $e")),
+            );
+          }
         },
         confirmText: "Удалить",
         confirmTextColor: Colors.red,
@@ -359,59 +372,41 @@ class _EditProfilePageState extends State<EditProfilePage> {
     Color? confirmTextColor,
   }) {
     return AlertDialog(
-      title: Text(
-        title,
-        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
+      title: Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       backgroundColor: Colors.white,
       content: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [Colors.grey[200]!, Colors.white],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: content,
       ),
       actions: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 5),
-          child: ElevatedButton(
-            onPressed: onCancel,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            child: const Text("Отмена"),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 5),
-          child: ElevatedButton(
-            onPressed: onConfirm,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            child: Text(
-              confirmText,
-              style: TextStyle(
-                color: confirmTextColor ?? Colors.black,
-              ),
-            ),
-          ),
+        TextButton(onPressed: onCancel, child: const Text("Отмена")),
+        TextButton(
+          onPressed: onConfirm,
+          child: Text(confirmText, style: TextStyle(color: confirmTextColor ?? Colors.blue)),
         ),
       ],
+    );
+  }
+
+  Widget _buildOptionCard({required String title, required String subtitle, required IconData icon, VoidCallback? onTap, Color iconColor = Colors.grey}) {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      elevation: 5,
+      child: ListTile(
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle),
+        trailing: Icon(icon, color: iconColor),
+        onTap: onTap,
+      ),
     );
   }
 
@@ -420,10 +415,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black), onPressed: () => Navigator.pop(context)),
         title: const Text(
           "Редактировать профиль",
           style: TextStyle(fontSize: 23, fontWeight: FontWeight.bold, color: Colors.black),
@@ -433,10 +425,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         automaticallyImplyLeading: false,
         centerTitle: true,
       ),
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: 3,
-        onDestinationSelected: (index) {},
-      ),
+      bottomNavigationBar: BottomNavBar(currentIndex: 3, onDestinationSelected: (index) {}),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -458,16 +447,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           : const AssetImage("assets/default_avatar.png") as ImageProvider,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) {
-                        print("Error loading image: $error");
                         if (mounted) {
                           setState(() {
                             avatarUrl = "assets/default_avatar.png";
                           });
                         }
-                        return Image.asset(
-                          "assets/default_avatar.png",
-                          fit: BoxFit.cover,
-                        );
+                        return Image.asset("assets/default_avatar.png", fit: BoxFit.cover);
                       },
                     ),
                   ),
@@ -476,65 +461,42 @@ class _EditProfilePageState extends State<EditProfilePage> {
             ),
             TextButton(
               onPressed: _pickImage,
-              child: const Text(
-                "Изменить аватар",
-                style: TextStyle(color: Colors.blue, fontSize: 16),
-              ),
+              child: const Text("Изменить аватар", style: TextStyle(color: Colors.blue, fontSize: 16)),
             ),
             const SizedBox(height: 20),
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              elevation: 5,
-              child: ListTile(
-                title: const Text("Имя", style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text("$firstName $lastName"),
-                trailing: const Icon(Icons.edit, color: Colors.grey),
-                onTap: _updateName,
-              ),
+            _buildOptionCard(
+              title: "Имя",
+              subtitle: "$firstName $lastName",
+              icon: Icons.edit,
+              onTap: _updateName,
             ),
             const SizedBox(height: 10),
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              elevation: 5,
-              child: ListTile(
-                title: const Text("Email", style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(userEmail),
-                trailing: const Icon(Icons.edit, color: Colors.grey),
-                onTap: _updateEmail,
-              ),
+            _buildOptionCard(
+              title: "Email",
+              subtitle: userEmail,
+              icon: Icons.edit,
+              onTap: _updateEmail,
             ),
             const SizedBox(height: 10),
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              elevation: 5,
-              child: ListTile(
-                title: const Text("Пароль", style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text("••••••••"),
-                trailing: const Icon(Icons.edit, color: Colors.grey),
-                onTap: _updatePassword,
-              ),
+            _buildOptionCard(
+              title: "Пароль",
+              subtitle: "••••••••",
+              icon: Icons.edit,
+              onTap: _updatePassword,
             ),
             const SizedBox(height: 10),
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              elevation: 5,
-              child: ListTile(
-                title: const Text("Язык приложения", style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(appLanguage),
-                trailing: const Icon(Icons.edit, color: Colors.grey),
-                onTap: _updateLanguage,
-              ),
+            _buildOptionCard(
+              title: "Язык приложения",
+              subtitle: appLanguage,
+              icon: Icons.edit,
+              onTap: _updateLanguage,
             ),
             const SizedBox(height: 10),
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              elevation: 5,
-              child: ListTile(
-                title: const Text("Спортивное приложение", style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(isSportsAppConnected ? "Подключено" : "Не подключено"),
-                trailing: const Icon(Icons.link, color: Colors.grey),
-                onTap: _connectSportsApp,
-              ),
+            _buildOptionCard(
+              title: "Спортивное приложение",
+              subtitle: isSportsAppConnected ? "Подключено" : "Не подключено",
+              icon: Icons.link,
+              onTap: _connectSportsApp,
             ),
             const SizedBox(height: 10),
             Card(

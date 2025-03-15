@@ -1,30 +1,33 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Импортируем FirebaseAuth
-import 'package:cloud_firestore/cloud_firestore.dart'; // Импортируем FirebaseFirestore
-import 'main_page.dart'; // Импортируем MainPage
-import 'team_page.dart'; // Импортируем TeamPage
-import 'team_selection_page.dart'; // Импортируем TeamSelectionPage
-import 'profile_page.dart'; // Импортируем ProfilePage
-import 'edit_profile_page.dart'; // Импортируем EditProfilePage
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'main_page.dart';
+import 'team_page.dart';
+import 'team_selection_page.dart';
+import 'profile_page.dart';
 
-/// 📌 **Закреплённая нижняя панель**
 class BottomNavBar extends StatelessWidget {
   final int currentIndex;
   final Function(int) onDestinationSelected;
 
   const BottomNavBar({
-    super.key,
+    Key? key,
     required this.currentIndex,
     required this.onDestinationSelected,
-  });
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return NavigationBar(
       selectedIndex: currentIndex,
       onDestinationSelected: (index) {
-        onDestinationSelected(index); // Вызываем переданный колбэк
-        _navigateToPage(context, index); // Вызываем навигацию
+        // Избегаем повторной навигации на ту же страницу
+        if (index == currentIndex) {
+          onDestinationSelected(index);
+          return;
+        }
+        onDestinationSelected(index);
+        _navigateToPage(context, index);
       },
       destinations: const [
         NavigationDestination(icon: Icon(Icons.home), label: 'Главная'),
@@ -35,17 +38,15 @@ class BottomNavBar extends StatelessWidget {
     );
   }
 
-  /// 🔥 Навигация на страницы
   void _navigateToPage(BuildContext context, int index) {
     switch (index) {
       case 0: // Главная
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => MainPage()),
+          MaterialPageRoute(builder: (context) => const MainPage()),
         );
         break;
       case 1: // Магазин
-      // Добавьте переход на страницу магазина, если она есть
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Магазин пока недоступен")),
         );
@@ -56,34 +57,26 @@ class BottomNavBar extends StatelessWidget {
       case 3: // Профиль
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => ProfilePage()),
+          MaterialPageRoute(builder: (context) => const ProfilePage()),
         );
         break;
     }
   }
 
-  /// 🔥 Переход на страницу команды
   Future<void> _navigateToTeamPage(BuildContext context) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
-    final teams = await FirebaseFirestore.instance
-        .collection('teams')
-        .where('members', arrayContains: user.uid)
-        .get();
-
-    if (teams.docs.isNotEmpty) {
-      String teamId = teams.docs.first.id;
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    if (userDoc.exists && (userDoc['teamId'] ?? null) != null) {
+      String teamId = userDoc['teamId'];
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (context) => TeamPage(teamId: teamId),
-        ),
+        MaterialPageRoute(builder: (context) => TeamPage(teamId: teamId)),
       );
     } else {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => TeamSelectionPage()),
+        MaterialPageRoute(builder: (context) => const TeamSelectionPage()),
       );
     }
   }

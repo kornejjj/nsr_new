@@ -5,7 +5,7 @@ import 'main_page.dart';
 import 'bottom_nav_bar.dart';
 
 class TeamSelectionPage extends StatefulWidget {
-  const TeamSelectionPage({Key? key}) : super(key: key); // Добавлен const конструктор
+  const TeamSelectionPage({Key? key}) : super(key: key);
 
   @override
   _TeamSelectionPageState createState() => _TeamSelectionPageState();
@@ -23,10 +23,15 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
     _checkIfInTeam();
   }
 
+  @override
+  void dispose() {
+    _teamNameController.dispose();
+    super.dispose();
+  }
+
   Future<void> _checkIfInTeam() async {
     String userId = _auth.currentUser!.uid;
     DocumentSnapshot userDoc = await _firestore.collection('users').doc(userId).get();
-
     if (userDoc.exists && userDoc['teamId'] != null) {
       Navigator.pushReplacement(
         context,
@@ -41,59 +46,73 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
       _showSnackBar("Введите название команды");
       return;
     }
-
     setState(() => _isLoading = true);
     String userId = _auth.currentUser!.uid;
-
     try {
-      QuerySnapshot existingTeams = await _firestore.collection('teams').where('name', isEqualTo: teamName).get();
-
+      // Проверяем, что команды с таким названием нет
+      QuerySnapshot existingTeams = await _firestore.collection('teams')
+          .where('name', isEqualTo: teamName).get();
       if (existingTeams.docs.isNotEmpty) {
         _showSnackBar("Эта команда уже существует!");
         setState(() => _isLoading = false);
         return;
       }
-
-      DocumentReference teamRef = await _firestore.collection('teams').add({
-        'name': teamName,
-        'members': [userId],
-        'avatar': 'assets/team_logo.png'
+      // Создаем команду и обновляем пользователя в одной транзакции
+      await _firestore.runTransaction((transaction) async {
+        DocumentReference teamRef = _firestore.collection('teams').doc();
+        transaction.set(teamRef, {
+          'name': teamName,
+          'members': [userId],
+          'avatar': 'assets/team_logo.png'
+        });
+        transaction.update(_firestore.collection('users').doc(userId), {'teamId': teamRef.id});
       });
-
-      await _firestore.collection('users').doc(userId).update({'teamId': teamRef.id});
-
       _showSnackBar("Команда успешно создана!");
       _navigateToMain();
     } catch (error) {
       _showSnackBar("Ошибка: $error");
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _joinTeam(String teamId, List members) async {
+  Future<void> _joinTeam(String teamId, List<String> members) async {
     String userId = _auth.currentUser!.uid;
-
     if (members.contains(userId)) {
       _showSnackBar("Вы уже в этой команде!");
       return;
     }
-
-    if (members.length >= 15) {
-      _showSnackBar("Эта команда уже заполнена (15/15)!");
+    if (members.length >= 20) {
+      _showSnackBar("Эта команда уже заполнена (20/20)!");
       return;
     }
-
+    setState(() => _isLoading = true);
     try {
-      members.add(userId);
-
-      await _firestore.collection('teams').doc(teamId).update({'members': members});
-      await _firestore.collection('users').doc(userId).update({'teamId': teamId});
-
+      await _firestore.runTransaction((transaction) async {
+        DocumentReference teamRef = _firestore.collection('teams').doc(teamId);
+        DocumentSnapshot teamSnap = await transaction.get(teamRef);
+        if (!teamSnap.exists) throw Exception("Команда не найдена");
+        List<dynamic> currentMembers = List<dynamic>.from((teamSnap.data() as Map<String, dynamic>)['members'] ?? []);
+        if (currentMembers.contains(userId)) throw Exception("Вы уже в этой команде!");
+        if (currentMembers.length >= 20) throw Exception("Эта команда уже заполнена (20/20)!");
+        currentMembers.add(userId);
+        transaction.update(teamRef, {'members': currentMembers});
+        transaction.update(_firestore.collection('users').doc(userId), {'teamId': teamId});
+      });
       _showSnackBar("Вы успешно присоединились!");
       _navigateToMain();
     } catch (error) {
-      _showSnackBar("Ошибка: $error");
+      String errorMsg;
+      if (error is FirebaseException) {
+        errorMsg = "Ошибка: ${error.message}";
+      } else if (error is Exception) {
+        errorMsg = error.toString().replaceFirst('Exception: ', '');
+      } else {
+        errorMsg = "Ошибка: $error";
+      }
+      _showSnackBar(errorMsg);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -164,9 +183,8 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
                     itemCount: teams.length,
                     itemBuilder: (context, index) {
                       var team = teams[index];
-                      var members = List<String>.from(team['members']);
+                      List<String> members = List<String>.from(team['members'] ?? []);
                       String teamAvatar = team['avatar'] ?? 'assets/team_logo.png';
-
                       return Card(
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 3,
@@ -178,9 +196,9 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
                                 : AssetImage(teamAvatar) as ImageProvider,
                           ),
                           title: Text(team['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text("Участников: ${members.length}/15"),
+                          subtitle: Text("Участников: ${members.length}/20"),
                           trailing: ElevatedButton(
-                            onPressed: () => _joinTeam(team.id, members),
+                            onPressed: _isLoading ? null : () => _joinTeam(team.id, members),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.amber,
                               foregroundColor: Colors.black,

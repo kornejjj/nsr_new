@@ -13,7 +13,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  int _currentIndex = 3;
+  // Хранение данных профиля
   String userName = "Загрузка...";
   String teamName = "Без команды";
   String avatarUrl = "assets/default_avatar.png";
@@ -25,56 +25,57 @@ class _ProfilePageState extends State<ProfilePage> {
     _loadUserData();
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   Future<void> _loadUserData() async {
+    String userId = FirebaseAuth.instance.currentUser!.uid;
+    String newUserName = userName;
+    String newTeamName = "Без команды";
+    String newAvatarUrl = avatarUrl;
+    int newUserPoints = userPoints;
     try {
-      String userId = FirebaseAuth.instance.currentUser!.uid;
-      DocumentSnapshot userDoc =
-      await FirebaseFirestore.instance.collection('users').doc(userId).get();
-
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
       if (userDoc.exists) {
-        if (mounted) {
-          setState(() {
-            userName = "${userDoc['firstName'] ?? ''} ${userDoc['lastName'] ?? ''}".trim();
-            String? avatar = userDoc['avatar'];
-            avatarUrl = (avatar != null && avatar.isNotEmpty && avatar.startsWith("http"))
-                ? avatar
-                : "assets/default_avatar.png";
-            userPoints = (userDoc['points'] ?? 0).toInt();
-            print("Avatar URL: $avatarUrl");
-          });
-        }
-
-        if (userDoc['teamId'] != null) {
-          DocumentSnapshot teamDoc =
-          await FirebaseFirestore.instance.collection('teams').doc(userDoc['teamId']).get();
-          if (teamDoc.exists && mounted) {
-            setState(() {
-              teamName = teamDoc['name'] ?? "Без команды";
-            });
+        var data = userDoc.data() as Map<String, dynamic>;
+        newUserName = "${data['firstName'] ?? ''} ${data['lastName'] ?? ''}".trim();
+        String? avatar = data['avatar'] as String?;
+        newAvatarUrl = (avatar != null && avatar.isNotEmpty && avatar.startsWith("http"))
+            ? avatar
+            : "assets/default_avatar.png";
+        newUserPoints = (data['points'] ?? 0) is int
+            ? data['points']
+            : (data['points'] ?? 0).toInt();
+        String? teamId = data['teamId'] as String?;
+        if (teamId != null && teamId.isNotEmpty) {
+          try {
+            DocumentSnapshot teamDoc = await FirebaseFirestore.instance.collection('teams').doc(teamId).get();
+            if (teamDoc.exists) {
+              newTeamName = (teamDoc.data() as Map<String, dynamic>)['name'] ?? "Без команды";
+            }
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("Ошибка загрузки команды: $e")),
+            );
           }
         }
-      } else if (mounted) {
-        setState(() {
-          avatarUrl = "assets/default_avatar.png";
-          print("User does not exist, using default avatar: $avatarUrl");
-        });
+      } else {
+        // Если документ пользователя не найден
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Данные пользователя не найдены")),
+        );
+        newAvatarUrl = "assets/default_avatar.png";
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Ошибка загрузки данных: $e")),
-        );
-        setState(() {
-          avatarUrl = "assets/default_avatar.png";
-          print("Error loading data, using default avatar: $avatarUrl");
-        });
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Ошибка загрузки данных: $e")),
+      );
+      newAvatarUrl = "assets/default_avatar.png";
     }
+    if (!mounted) return;
+    setState(() {
+      userName = newUserName.isNotEmpty ? newUserName : userName;
+      teamName = newTeamName;
+      avatarUrl = newAvatarUrl;
+      userPoints = newUserPoints;
+    });
   }
 
   @override
@@ -90,10 +91,13 @@ class _ProfilePageState extends State<ProfilePage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings, color: Colors.black, size: 26),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const EditProfilePage()),
-            ),
+            onPressed: () {
+              // После возврата из редактирования профиля перезагружаем данные
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const EditProfilePage()),
+              ).then((_) => _loadUserData());
+            },
           ),
         ],
         backgroundColor: Colors.yellow.shade600,
@@ -102,16 +106,8 @@ class _ProfilePageState extends State<ProfilePage> {
         centerTitle: true,
       ),
       bottomNavigationBar: BottomNavBar(
-        currentIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() => _currentIndex = index);
-          if (index == 0) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const MainPage()),
-            );
-          }
-        },
+        currentIndex: 3,
+        onDestinationSelected: (_) {},
       ),
       body: _buildBody(),
     );
@@ -142,7 +138,6 @@ class _ProfilePageState extends State<ProfilePage> {
                               : const AssetImage("assets/default_avatar.png") as ImageProvider,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
-                            print("Error loading image: $error");
                             if (mounted) {
                               setState(() {
                                 avatarUrl = "assets/default_avatar.png";
@@ -192,7 +187,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       children: [
         Text(
-          " $teamName",
+          teamName,
           style: const TextStyle(fontSize: 22, color: Colors.black),
         ),
       ],
@@ -213,17 +208,12 @@ class _ProfilePageState extends State<ProfilePage> {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
       elevation: 5,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: InkWell(
         onTap: () {},
         borderRadius: BorderRadius.circular(10),
         child: ListTile(
-          title: Text(
-            title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
-          ),
+          title: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500)),
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
