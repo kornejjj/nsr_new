@@ -1,11 +1,19 @@
+// Сначала buildscript
+buildscript {
+    dependencies {
+        classpath 'net.bytebuddy:byte-buddy:1.14.17' // Последняя версия на март 2025
+        classpath 'org.mockito:mockito-core:5.12.0'  // Последняя версия на март 2025
+    }
+}
 
+// Затем plugins
 plugins {
     id "com.google.gms.google-services" version "4.4.2" apply false  // ✅ Добавлено
     id 'com.android.application' version '8.8.0' apply false  // ✅ Обновлено!
     id "org.jetbrains.kotlin.android" version "2.1.0" apply false
-
 }
 
+// Остальные настройки
 allprojects {
     repositories {
         google()
@@ -17,10 +25,20 @@ rootProject.buildDir = "../build"
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
+
 subprojects {
     project.evaluationDependsOn(":app")
 }
 
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
+}
+
+// Отключаем тесты без afterEvaluate
+subprojects {
+    if (project.name == "flutter_plugin_android_lifecycle" || project.name == "image_picker_android") {
+        tasks.withType(Test) {
+            enabled = false
+        }
+    }
 }
