@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'bottom_nav_bar.dart';
 import 'login_page.dart';
+import 'strava_service.dart'; // Импортируем наш новый сервис
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({Key? key}) : super(key: key);
@@ -21,9 +22,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
   String userEmail = "";
   int userPoints = 0;
   bool isSportsAppConnected = false;
+  bool isStravaConnected = false; // Добавляем флаг для Strava
   String appLanguage = "Русский";
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final StravaService _stravaService = StravaService(); // Инициализируем StravaService
 
   @override
   void initState() {
@@ -44,6 +47,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
           avatarUrl = data['avatar'] ?? "assets/default_avatar.png";
           userPoints = (data['points'] ?? 0) is int ? data['points'] : (data['points'] ?? 0).toInt();
           isSportsAppConnected = data['sportsAppConnected'] ?? false;
+          isStravaConnected = data['stravaConnected'] ?? false; // Загружаем статус Strava
           appLanguage = data['language'] ?? "Русский";
         });
       }
@@ -56,11 +60,126 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
+  Future<void> _connectSportsApp() async {
+    await showDialog(
+      context: context,
+      builder: (context) => _buildDialog(
+        title: "Подключить спортивное приложение",
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Выберите приложение для подключения:"),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: isStravaConnected
+                  ? null
+                  : () async {
+                Navigator.pop(context);
+                await _connectStrava();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: Text(
+                isStravaConnected ? "Strava уже подключен" : "Подключить Strava",
+              ),
+            ),
+            const SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: isSportsAppConnected && !isStravaConnected
+                  ? null
+                  : () async {
+                Navigator.pop(context);
+                await _connectGoogleFitOrAppleHealth();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: Text(
+                isSportsAppConnected && !isStravaConnected
+                    ? "Google Fit / Apple Health уже подключен"
+                    : "Подключить Google Fit / Apple Health",
+              ),
+            ),
+          ],
+        ),
+        onCancel: () => Navigator.pop(context),
+        onConfirm: () {},
+        confirmText: "",
+      ),
+    );
+  }
+
+  Future<void> _connectStrava() async {
+    try {
+      // Вызываем метод авторизации из StravaService
+      final accessToken = await _stravaService.authenticate();
+      if (accessToken != null) {
+        // Сохраняем статус подключения и токен в Firestore
+        await _firestore.collection('users').doc(_auth.currentUser!.uid).set(
+          {
+            'sportsAppConnected': true,
+            'stravaConnected': true,
+            'stravaAccessToken': accessToken,
+          },
+          SetOptions(merge: true),
+        );
+        if (mounted) {
+          setState(() {
+            isSportsAppConnected = true;
+            isStravaConnected = true;
+          });
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Strava успешно подключен")),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Не удалось подключить Strava")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Ошибка подключения Strava: $e")),
+        );
+      }
+    }
+  }
+
+  Future<void> _connectGoogleFitOrAppleHealth() async {
+    try {
+      await _firestore.collection('users').doc(_auth.currentUser!.uid).set(
+        {'sportsAppConnected': true, 'stravaConnected': false},
+        SetOptions(merge: true),
+      );
+      if (mounted) {
+        setState(() {
+          isSportsAppConnected = true;
+          isStravaConnected = false;
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Google Fit / Apple Health подключен")),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Ошибка подключения: $e")),
+        );
+      }
+    }
+  }
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
-      setState(() => null); // Обновляем состояние, чтобы показать индикатор загрузки
+      setState(() => null);
       try {
         File imageFile = File(pickedFile.path);
         String userId = _auth.currentUser!.uid;
@@ -292,38 +411,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  Future<void> _connectSportsApp() async {
-    await showDialog(
-      context: context,
-      builder: (context) => _buildDialog(
-        title: "Подключить спортивное приложение",
-        content: const Text("Подключиться к Google Fit или Apple Health?"),
-        onCancel: () => Navigator.pop(context),
-        onConfirm: () async {
-          try {
-            await _firestore.collection('users').doc(_auth.currentUser!.uid).set(
-              {'sportsAppConnected': true},
-              SetOptions(merge: true),
-            );
-            if (mounted) {
-              setState(() {
-                isSportsAppConnected = true;
-              });
-            }
-            Navigator.pop(context);
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Ошибка подключения: $e")),
-              );
-            }
-          }
-        },
-        confirmText: "Подключить",
-      ),
-    );
-  }
-
   Future<void> _logout() async {
     await _auth.signOut();
     Navigator.pushReplacement(
@@ -389,15 +476,22 @@ class _EditProfilePageState extends State<EditProfilePage> {
       ),
       actions: [
         TextButton(onPressed: onCancel, child: const Text("Отмена")),
-        TextButton(
-          onPressed: onConfirm,
-          child: Text(confirmText, style: TextStyle(color: confirmTextColor ?? Colors.blue)),
-        ),
+        if (confirmText.isNotEmpty)
+          TextButton(
+            onPressed: onConfirm,
+            child: Text(confirmText, style: TextStyle(color: confirmTextColor ?? Colors.blue)),
+          ),
       ],
     );
   }
 
-  Widget _buildOptionCard({required String title, required String subtitle, required IconData icon, VoidCallback? onTap, Color iconColor = Colors.grey}) {
+  Widget _buildOptionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    VoidCallback? onTap,
+    Color iconColor = Colors.grey,
+  }) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       elevation: 5,
@@ -425,114 +519,100 @@ class _EditProfilePageState extends State<EditProfilePage> {
         automaticallyImplyLeading: false,
         centerTitle: true,
       ),
-      bottomNavigationBar: BottomNavBar(currentIndex: 3, onDestinationSelected: (index) {}),
+      bottomNavigationBar: BottomNavBar(currentIndex: 3, onDestinationSelected: (_) {}),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Container(
-              margin: const EdgeInsets.only(bottom: 20),
-              child: CircleAvatar(
-                radius: 60,
-                backgroundColor: Colors.white,
-                child: CircleAvatar(
-                  radius: 56,
-                  backgroundImage: avatarUrl.startsWith("http")
-                      ? NetworkImage(avatarUrl)
-                      : const AssetImage("assets/default_avatar.png") as ImageProvider,
-                  child: ClipOval(
-                    child: Image(
-                      image: avatarUrl.startsWith("http")
-                          ? NetworkImage(avatarUrl)
-                          : const AssetImage("assets/default_avatar.png") as ImageProvider,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        if (mounted) {
-                          setState(() {
-                            avatarUrl = "assets/default_avatar.png";
-                          });
-                        }
-                        return Image.asset("assets/default_avatar.png", fit: BoxFit.cover);
-                      },
-                    ),
+            const SizedBox(height: 20),
+            Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                CircleAvatar(
+                  radius: 60,
+                  backgroundColor: Colors.white,
+                  child: CircleAvatar(
+                    radius: 56,
+                    backgroundImage: avatarUrl.startsWith("http")
+                        ? NetworkImage(avatarUrl)
+                        : const AssetImage("assets/default_avatar.png") as ImageProvider,
                   ),
                 ),
-              ),
+                GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Colors.amber,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.camera_alt, color: Colors.black, size: 20),
+                  ),
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: _pickImage,
-              child: const Text("Изменить аватар", style: TextStyle(color: Colors.blue, fontSize: 16)),
+            const SizedBox(height: 15),
+            Text(
+              "$firstName $lastName",
+              style: const TextStyle(fontSize: 31, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              userEmail,
+              style: const TextStyle(fontSize: 18, color: Colors.grey),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              "$userPoints баллов",
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
             ),
             const SizedBox(height: 20),
             _buildOptionCard(
-              title: "Имя",
+              title: "Изменить имя",
               subtitle: "$firstName $lastName",
               icon: Icons.edit,
               onTap: _updateName,
             ),
-            const SizedBox(height: 10),
             _buildOptionCard(
-              title: "Email",
+              title: "Изменить email",
               subtitle: userEmail,
-              icon: Icons.edit,
+              icon: Icons.email,
               onTap: _updateEmail,
             ),
-            const SizedBox(height: 10),
             _buildOptionCard(
-              title: "Пароль",
+              title: "Изменить пароль",
               subtitle: "••••••••",
-              icon: Icons.edit,
+              icon: Icons.lock,
               onTap: _updatePassword,
             ),
-            const SizedBox(height: 10),
+            _buildOptionCard(
+              title: "Подключить спортивное приложение",
+              subtitle: isSportsAppConnected
+                  ? (isStravaConnected ? "Strava подключен" : "Google Fit / Apple Health подключен")
+                  : "Не подключено",
+              icon: Icons.directions_run,
+              onTap: _connectSportsApp,
+              iconColor: isSportsAppConnected ? Colors.green : Colors.grey,
+            ),
             _buildOptionCard(
               title: "Язык приложения",
               subtitle: appLanguage,
-              icon: Icons.edit,
+              icon: Icons.language,
               onTap: _updateLanguage,
             ),
-            const SizedBox(height: 10),
             _buildOptionCard(
-              title: "Спортивное приложение",
-              subtitle: isSportsAppConnected ? "Подключено" : "Не подключено",
-              icon: Icons.link,
-              onTap: _connectSportsApp,
+              title: "Выйти из аккаунта",
+              subtitle: "Выход",
+              icon: Icons.logout,
+              onTap: _logout,
+              iconColor: Colors.red,
             ),
-            const SizedBox(height: 10),
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              elevation: 5,
-              child: ListTile(
-                title: const Text("Баллы", style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text("$userPoints баллов"),
-                trailing: const Icon(Icons.star, color: Colors.yellow),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _logout,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber,
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text("Выйти", style: TextStyle(fontSize: 16)),
-              ),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: _deleteAccount,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text("Удалить аккаунт", style: TextStyle(fontSize: 16, color: Colors.red)),
-              ),
+            _buildOptionCard(
+              title: "Удалить аккаунт",
+              subtitle: "Удаление",
+              icon: Icons.delete_forever,
+              onTap: _deleteAccount,
+              iconColor: Colors.red,
             ),
           ],
         ),
