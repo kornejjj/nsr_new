@@ -116,28 +116,77 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   Future<void> _connectStrava() async {
     try {
-      // Вызываем метод авторизации из StravaService
-      final accessToken = await _stravaService.authenticate();
-      if (accessToken != null) {
-        // Сохраняем статус подключения и токен в Firestore
+      // Вызываем авторизацию в Strava и получаем access_token, refresh_token, expires_at
+      final authResult = await _stravaService.authenticate();
+      if (authResult != null) {
+        final tokenData = authResult as Map<String, dynamic>;
+        var accessToken = tokenData['access_token'] as String;
+        var refreshToken = tokenData['refresh_token'] as String;
+        var expiresAt = (tokenData['expires_at'] as num).toInt();
+
+        // Сохраняем статус подключения и токены в Firestore
         await _firestore.collection('users').doc(_auth.currentUser!.uid).set(
           {
             'sportsAppConnected': true,
             'stravaConnected': true,
             'stravaAccessToken': accessToken,
+            'stravaRefreshToken': refreshToken,
+            'stravaExpiresAt': expiresAt,
           },
           SetOptions(merge: true),
         );
+
+        // Проверяем срок действия access_token и обновляем его при необходимости
+        final currentTimeSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        if (expiresAt <= currentTimeSec) {
+          final refreshResult = await _stravaService.refreshAccessToken(refreshToken);
+          if (refreshResult != null) {
+            final refreshData = refreshResult as Map<String, dynamic>;
+            accessToken = refreshData['access_token'] as String;
+            refreshToken = refreshData['refresh_token'] as String;
+            expiresAt = (refreshData['expires_at'] as num).toInt();
+            // Обновляем токены в Firestore после рефреша
+            await _firestore.collection('users').doc(_auth.currentUser!.uid).update({
+              'stravaAccessToken': accessToken,
+              'stravaRefreshToken': refreshToken,
+              'stravaExpiresAt': expiresAt,
+            });
+          } else {
+            // Если не удалось обновить токен
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Не удалось обновить токен Strava. Попробуйте снова.")),
+            );
+            return;
+          }
+        }
+
+        // Получаем очки активности пользователя из Strava
+        final int newPoints = await _stravaService.fetchActivityPoints(accessToken);
+        if (newPoints != null) {
+          // Начисляем полученные очки и обновляем поле points в Firestore
+          await _firestore.collection('users').doc(_auth.currentUser!.uid).update({
+            'points': FieldValue.increment(newPoints),
+          });
+          if (mounted) {
+            setState(() {
+              userPoints += newPoints;
+            });
+          }
+        }
+
+        // Обновляем флаги подключения в состоянии
         if (mounted) {
           setState(() {
             isSportsAppConnected = true;
             isStravaConnected = true;
           });
         }
+        // Уведомляем об успешном подключении Strava
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Strava успешно подключен")),
         );
       } else {
+        // Пользователь отменил авторизацию или произошла ошибка
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Не удалось подключить Strava")),
         );
@@ -150,6 +199,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
     }
   }
+
 
   Future<void> _connectGoogleFitOrAppleHealth() async {
     try {
