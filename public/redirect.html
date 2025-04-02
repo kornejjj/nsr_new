@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Strava Auth Redirect</title>
+    <script>
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
+
+        if (code) {
+          // редирект обратно в приложение
+          window.location.href = `nonstop-backend-app1-dbf27://redirect?code=${code}`;
+        } else {
+          document.body.innerText = "Authorization failed. No code found.";
+        }
+    </script>
+</head>
+<body>
+<p>Redirecting...</p>
+</body>
+</html>

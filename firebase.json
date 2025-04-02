@@ -1,17 +1,10 @@
 {
   "hosting": {
-    "site": "nonstop-backend",
-    "public": "build/web",
+    "public": "public",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
     ]
   }
 }
