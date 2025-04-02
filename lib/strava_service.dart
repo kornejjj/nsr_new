@@ -8,18 +8,15 @@ class StravaService {
   static const String clientId = '152225';
   static const String clientSecret = 'b744e80833e46131b27087c7845425138bf32003';
 
-  // ⚠️ ВАЖНО: используем Custom Scheme, чтобы обойти ошибку 404 и вернуть управление в приложение
-  static const String redirectUri = 'https://app1-dbf27.firebaseapp.com/redirect';
+  // ⚠️ redirectUri должен совпадать с тем, что указан в Strava и firebase.json
+  static const String redirectUri = 'https://app1-dbf27.web.app/redirect'; // ✅ ИСПРАВЛЕНО
   static const String callbackScheme = 'https';
-
 
   /// Авторизация пользователя через Strava
   Future<Map<String, dynamic>?> authenticate() async {
     try {
-      // 🔍 Логируем redirectUri
       print('🔗 redirectUri: $redirectUri');
 
-      // Формируем URL авторизации Strava
       final authUrl =
           'https://www.strava.com/oauth/authorize'
           '?client_id=$clientId'
@@ -28,23 +25,19 @@ class StravaService {
           '&approval_prompt=auto'
           '&scope=activity:read_all';
 
-      // 🔍 Показываем весь URL авторизации
       print('🔗 FULL authUrl: $authUrl');
 
-      // Запускаем авторизацию в браузере
       final result = await FlutterWebAuth2.authenticate(
         url: authUrl,
         callbackUrlScheme: callbackScheme,
       );
 
-      // Извлекаем code из результата редиректа
       final code = Uri.parse(result).queryParameters['code'];
       if (code == null) {
         print('❌ Код авторизации Strava не получен');
         return null;
       }
 
-      // Обмениваем code на access_token
       final tokenResponse = await http.post(
         Uri.parse('https://www.strava.com/oauth/token'),
         body: {
@@ -71,7 +64,6 @@ class StravaService {
       return null;
     }
   }
-
 
   /// Обновление accessToken, если он истёк
   Future<Map<String, dynamic>?> refreshAccessToken(String refreshToken) async {
@@ -128,10 +120,10 @@ class StravaService {
         final int walkPoints = (walkDistance / 1000 * 8).round();
         final int total = runPoints + walkPoints;
 
-        print("🏃 Бег: ${runPoints} очков, 🚶 Ходьба: ${walkPoints} очков");
+        print("🏃 Бег: $runPoints очков, 🚶 Ходьба: $walkPoints очков");
         return total;
       } else if (response.statusCode == 401) {
-        return -1; // токен истёк
+        return -1;
       } else {
         print('❌ Ошибка загрузки активностей: ${response.statusCode}');
         return 0;

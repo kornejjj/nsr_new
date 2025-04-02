@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Redirecting...</title>
+    <script>
+        // Берем параметры из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+
+        if (code) {
+          // Редиректим обратно в приложение
+          window.location.href = `nonstop-backend-app1-dbf27://redirect?code=${code}`;
+        } else {
+          document.body.innerHTML = "<h2>🚫 Ошибка: Код не найден.</h2>";
+        }
+    </script>
+</head>
+<body>
+<h2>⏳ Перенаправление...</h2>
+</body>
+</html>
